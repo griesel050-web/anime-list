@@ -22,8 +22,10 @@
   --watched: #5fb9c4;
   --watched-soft: rgba(95,185,196,0.16);
   --rating: #b79ce8;
+  --score-chip: #e8c468;
 
   --shadow: 0 10px 30px rgba(0,0,0,0.4);
+  --shadow-hover: 0 16px 38px rgba(0,0,0,0.5);
   --radius: 10px;
   --font-display: 'Bebas Neue', sans-serif;
   --font-body: 'Work Sans', sans-serif;
@@ -160,6 +162,7 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text-dim);
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
 }
 .tab.active{
   background: var(--watching-soft);
@@ -174,7 +177,7 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
 /* ---------- Grid / cards ---------- */
 .grid{
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
   gap: 16px;
   align-items: start;
 }
@@ -187,16 +190,38 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
+  transition: box-shadow .2s ease, border-color .25s ease;
+}
+@media (prefers-reduced-motion: no-preference){
+  .card{ transition: box-shadow .2s ease, border-color .25s ease, transform .2s ease; }
+  .card:hover{ transform: translateY(-3px); box-shadow: var(--shadow-hover); }
 }
 .card[data-status="watching"]{ border-left-color: var(--watching); }
 .card[data-status="completed"]{ border-left-color: var(--completed); }
 .card[data-status="plan"]{ border-left-color: var(--plan); }
 .card[data-status="dropped"]{ border-left-color: var(--dropped); }
 
+.card-banner{
+  height: 78px;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--surface-3);
+  background-image: linear-gradient(135deg, var(--surface-3), var(--surface-2));
+  position: relative;
+}
+.card-banner::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(18,16,24,0) 35%, var(--surface) 100%);
+}
 .card-top{
   display: flex;
   gap: 12px;
-  padding: 14px 14px 0;
+  padding: 0 14px;
+  margin-top: -34px;
+  position: relative;
+  align-items: flex-end;
 }
 .poster{
   width: 64px;
@@ -205,6 +230,8 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   object-fit: cover;
   background: var(--surface-2);
   flex-shrink: 0;
+  border: 2px solid var(--surface);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.45);
 }
 .poster-fallback{
   width: 64px;
@@ -217,21 +244,29 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   flex-shrink: 0;
   color: var(--text-faint);
   font-size: 1.4rem;
+  border: 2px solid var(--surface);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.45);
 }
-.card-meta{ min-width: 0; flex: 1; }
+.card-meta{ min-width: 0; flex: 1; padding-bottom: 4px; }
 .card-title{
   font-weight: 600;
   font-size: 0.96rem;
   line-height: 1.25;
-  margin: 0 0 6px;
+  margin: 0 0 8px;
   word-break: break-word;
 }
 .card-title a{ color: var(--text); }
+.card-meta-row{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .status-select{
-  width: 100%;
-  font-size: 0.78rem;
-  padding: 5px 8px;
-  margin-bottom: 8px;
+  width: auto;
+  flex: 0 1 130px;
+  font-size: 0.76rem;
+  padding: 5px 6px;
 }
 .status-select[data-status="watching"]{ color: var(--watching); }
 .status-select[data-status="completed"]{ color: var(--completed); }
@@ -254,8 +289,9 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   border: 1px solid var(--border);
   padding: 0;
   flex-shrink: 0;
+  transition: background .12s ease, border-color .12s ease, transform .12s ease;
 }
-.rating-bar:hover{ border-color: var(--rating); }
+.rating-bar:hover{ border-color: var(--rating); transform: scaleY(1.1); }
 .rating-bar.filled{ background: var(--rating); border-color: var(--rating); }
 .rating-text{
   font-family: var(--font-mono);
@@ -302,7 +338,92 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   to{ background-position: 17px 0; }
 }
 
-/* ---------- Seasons ---------- */
+@media (prefers-reduced-motion: no-preference){
+  .card-enter{ animation: cardIn .35s ease both; }
+  .card-pulse{ animation: cardPulse .5s ease; }
+}
+@keyframes cardIn{
+  from{ opacity: 0; transform: translateY(10px); }
+  to{ opacity: 1; transform: translateY(0); }
+}
+@keyframes cardPulse{
+  0%{ box-shadow: var(--shadow), 0 0 0 0 rgba(242,161,84,0); }
+  30%{ box-shadow: var(--shadow), 0 0 0 3px rgba(242,161,84,0.35); }
+  100%{ box-shadow: var(--shadow), 0 0 0 0 rgba(242,161,84,0); }
+}
+@keyframes epPop{
+  0%{ transform: scale(1); }
+  40%{ transform: scale(1.18); }
+  100%{ transform: scale(1); }
+}
+@keyframes pulseFade{
+  0%, 100%{ opacity: 0.55; }
+  50%{ opacity: 1; }
+}
+
+/* ---------- Description / genres / score ---------- */
+.section-label{
+  font-size: 0.68rem;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-top: 12px;
+  margin-bottom: 6px;
+}
+.description-zone{ margin-bottom: 4px; }
+.chip-row{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.chip{
+  font-size: 0.68rem;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.chip-score{
+  color: var(--score-chip);
+  border-color: var(--score-chip);
+  background: rgba(232,196,104,0.12);
+  font-weight: 600;
+}
+.description-wrap{
+  max-height: 38px;
+  overflow: hidden;
+}
+@media (prefers-reduced-motion: no-preference){
+  .description-wrap{ transition: max-height .3s ease; }
+}
+.description-wrap.expanded{ max-height: 600px; }
+.description-text{
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-dim);
+  margin: 0;
+}
+.desc-toggle{ margin-top: 4px; margin-bottom: 4px; }
+.discovering-note{
+  font-size: 0.76rem;
+  color: var(--text-faint);
+  margin: 0 0 8px;
+}
+@media (prefers-reduced-motion: no-preference){
+  .discovering-note{ animation: pulseFade 1.4s ease-in-out infinite; }
+}
+.season-ani-link{
+  font-size: 0.85rem;
+  color: var(--text-faint);
+  padding: 2px 4px;
+  flex-shrink: 0;
+}
+.season-ani-link:hover{ color: var(--watching); }
+
+
 .card-body{ padding: 12px 14px 14px; }
 .seasons{ display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
 .no-seasons{ font-size: 0.8rem; color: var(--text-faint); margin: 4px 0; }
@@ -369,6 +490,7 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
 }
 .ep-cell:hover{ border-color: var(--text-dim); color: var(--text); }
 .ep-cell.watched{
@@ -380,6 +502,9 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
 .ep-cell.add-ep{
   border-style: dashed;
   color: var(--text-faint);
+}
+@media (prefers-reduced-motion: no-preference){
+  .ep-cell.ep-pop{ animation: epPop .28s ease; }
 }
 
 .season-actions{
@@ -401,6 +526,7 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   background: none;
   border: none;
   padding: 0;
+  transition: color .15s ease;
 }
 .btn-link:hover{ color: var(--watching); text-decoration: underline; }
 
@@ -468,13 +594,16 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
 .modal-backdrop{
   position: fixed; inset: 0;
   background: rgba(8,7,11,0.7);
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
   z-index: 50;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .2s ease, visibility .2s ease;
 }
-.modal-backdrop.open{ display: flex; }
+.modal-backdrop.open{ opacity: 1; visibility: visible; }
 .modal{
   background: var(--surface);
   border: 1px solid var(--border);
@@ -485,6 +614,10 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow);
+}
+@media (prefers-reduced-motion: no-preference){
+  .modal{ transform: scale(0.96) translateY(8px); transition: transform .2s ease; }
+  .modal-backdrop.open .modal{ transform: scale(1) translateY(0); }
 }
 .modal-head{
   display: flex;

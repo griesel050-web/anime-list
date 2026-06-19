@@ -8,12 +8,18 @@ A personal anime watch tracker, split into plain HTML/CSS/JS so it's easy to rea
 
 ## Features
 
-- **Search & add** — looks up titles live via the [AniList](https://anilist.co) API (no key needed) and pulls in the poster + episode count automatically. If a title isn't found, there's an "Add manually" fallback.
+- **Search & auto-add seasons** — looks up titles live via the [AniList](https://anilist.co) API and pulls in the poster, banner art, description, genres, and community score automatically. For shows AniList splits into multiple seasonal entries (e.g. *Attack on Titan* Season 1/2/3/4), it walks the prequel/sequel chain and adds every season it finds — each with its own episode count — instead of just the one you searched for. If a title isn't found, there's an "Add manually" fallback.
 - **Per-episode checklist** — every season gets a grid of episode numbers you can tap individually, so you can mark exactly which episodes you've seen (not just a running count) — handy for rewatches, skipped episodes, etc.
-- **Multiple seasons per show** — add as many season/arc blocks as you like under one entry (e.g. "Season 1", "Season 2", "Movie"), each with its own episode checklist and total.
+- **Multiple seasons per show** — add more season/arc blocks yourself too via "+ Add season", each with its own checklist and total.
 - **Ratings** — a quick 1–10 score per title (click a bar to set it, click the same one again to clear it).
 - **Status tracking** — Watching / Completed / Plan to Watch / Dropped, with gentle automatic nudges (e.g. finishing every known episode flips it to Completed) that you can always override.
 - **Export / Import JSON** — back up your log or move it to another browser/device.
+
+## Notes on season auto-discovery
+
+- Only kicks in for titles added via search (not "Add manually"), and only follows TV/ONA entries — movies, OVAs, and specials are left as standalone seasons so they don't get folded into the main numbering.
+- Runs in the background after you add a title — you'll briefly see "Looking for more seasons…" under the seasons list while it works. If it can't find anything (or the request fails), your title just keeps the one season you added it with.
+- Uses a few extra AniList requests per add (one per season found), so adding a long-running franchise may take a couple of seconds.
 
 ## Host it on GitHub Pages
 

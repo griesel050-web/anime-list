@@ -15,7 +15,10 @@
     filterStatus: "all",
     searchQuery: "",
     searchTimer: null,
-    addedApiIds: {}
+    addedApiIds: {},
+    knownCardIds: {},      // ids already rendered once — used to gate the entrance animation
+    lastTouchedEntryId: null,
+    lastToggledEp: null    // {seasonId, ep} — used for the brief "pop" feedback
   };
 
   // ---------- helpers ----------
@@ -31,6 +34,18 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function stripHtml(html){
+    if(!html) return "";
+    var div = document.createElement("div");
+    div.innerHTML = html;
+    return (div.textContent || "").replace(/\s+\n/g, "\n").trim();
+  }
+
+  function pickTitle(titleObj){
+    if(!titleObj) return "Untitled";
+    return titleObj.english || titleObj.romaji || "Untitled";
   }
 
   // ---------- season helpers ----------
@@ -52,7 +67,9 @@
       label: label || "Season 1",
       total: total || null,
       watched: [],
-      length: null
+      length: null,
+      apiId: null,
+      sourceTitle: ""
     };
     recomputeSeasonLength(season);
     return season;
@@ -101,9 +118,14 @@
       apiId: raw.apiId || raw.malId || null,
       title: raw.title || "Untitled",
       image: raw.image || "",
+      banner: raw.banner || "",
+      description: raw.description || "",
+      genres: Array.isArray(raw.genres) ? raw.genres : [],
+      communityScore: (typeof raw.communityScore === "number") ? raw.communityScore : null,
       status: statusMeta[raw.status] ? raw.status : "plan",
       rating: (typeof raw.rating === "number") ? raw.rating : null,
       seasons: [],
+      discovering: false,
       updatedAt: raw.updatedAt || Date.now()
     };
 
@@ -114,31 +136,24 @@
           label: s.label || "Season 1",
           total: (typeof s.total === "number") ? s.total : null,
           watched: Array.isArray(s.watched) ? s.watched.slice().filter(function(n){ return Number.isFinite(n); }) : [],
-          length: (typeof s.length === "number") ? s.length : null
+          length: (typeof s.length === "number") ? s.length : null,
+          apiId: s.apiId || null,
+          sourceTitle: s.sourceTitle || ""
         };
         recomputeSeasonLength(season);
         return season;
       });
     } else if(raw.currentEpisode != null || raw.totalEpisodes != null){
-      // migrate from the old single-counter shape
+      // migrate from the original single-counter shape
       var cur = Number(raw.currentEpisode) || 0;
       var watchedArr = [];
       for(var i = 1; i <= cur; i++){ watchedArr.push(i); }
-      entry.seasons = [makeSeasonFromMigration(raw.season, raw.totalEpisodes, watchedArr)];
+      var season2 = makeSeason(raw.season || "Season 1", raw.totalEpisodes || null);
+      season2.watched = watchedArr;
+      recomputeSeasonLength(season2);
+      entry.seasons = [season2];
     }
     return entry;
-  }
-
-  function makeSeasonFromMigration(label, total, watched){
-    var season = {
-      id: uid(),
-      label: label || "Season 1",
-      total: total || null,
-      watched: watched || [],
-      length: null
-    };
-    recomputeSeasonLength(season);
-    return season;
   }
 
   function loadEntries(){
@@ -156,7 +171,13 @@
 
   function saveEntries(){
     try{
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
+      // discovery in-flight state is transient — don't persist it
+      var snapshot = state.entries.map(function(e){
+        var copy = Object.assign({}, e);
+        delete copy.discovering;
+        return copy;
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
     }catch(e){
       console.error("Failed to save entries", e);
       showToast("Couldn't save — your browser storage may be full.");
@@ -234,21 +255,28 @@
     var cells = "";
     for(var i = 1; i <= length; i++){
       var watched = season.watched.indexOf(i) !== -1;
-      cells += '<button type="button" class="ep-cell' + (watched ? ' watched' : '') + '" data-action="ep-toggle" data-season-id="' + season.id +
-        '" data-ep="' + i + '" aria-pressed="' + watched + '" title="Episode ' + i + (watched ? ' — watched' : ' — not watched yet') + '">' + i + "</button>";
+      var justToggled = state.lastToggledEp && state.lastToggledEp.seasonId === season.id && state.lastToggledEp.ep === i;
+      cells += '<button type="button" class="ep-cell' + (watched ? " watched" : "") + (justToggled ? " ep-pop" : "") + '" data-action="ep-toggle" data-season-id="' + season.id +
+        '" data-ep="' + i + '" aria-pressed="' + watched + '" title="Episode ' + i + (watched ? " — watched" : " — not watched yet") + '">' + i + "</button>";
     }
     if(!total){
       cells += '<button type="button" class="ep-cell add-ep" data-action="ep-extend" data-season-id="' + season.id +
         '" title="Add another episode slot" aria-label="Add episode slot">+</button>';
     }
     var totalLabel = total ? total : "?";
+    var aniLink = season.apiId
+      ? '<a class="season-ani-link" href="https://anilist.co/anime/' + encodeURIComponent(season.apiId) + '" target="_blank" rel="noopener" title="View on AniList">↗</a>'
+      : "";
+    var titleAttr = season.sourceTitle ? (' title="' + escapeHtml(season.sourceTitle) + '"') : "";
+
     return (
       '<div class="season" data-season-id="' + season.id + '">' +
         '<div class="season-head">' +
           '<input class="season-label-input" data-action="season-label" data-season-id="' + season.id +
-            '" value="' + escapeHtml(season.label) + '" aria-label="Season label">' +
+            '" value="' + escapeHtml(season.label) + '"' + titleAttr + ' aria-label="Season label">' +
           '<input class="season-total-input" data-action="season-total" data-season-id="' + season.id +
             '" type="number" min="0" value="' + (total != null ? total : "") + '" placeholder="eps" aria-label="Total episodes">' +
+          aniLink +
           '<button type="button" class="season-remove" data-action="season-remove" data-season-id="' + season.id + '" aria-label="Remove season">&times;</button>' +
         "</div>" +
         '<div class="ep-grid">' + cells + "</div>" +
@@ -263,7 +291,46 @@
     );
   }
 
+  var DESC_TRUNCATE = 150;
+
+  function descriptionZoneHtml(entry){
+    var hasMeta = entry.description || (entry.genres && entry.genres.length) || (entry.communityScore != null);
+    if(!hasMeta && !entry.discovering) return "";
+
+    var chips = "";
+    (entry.genres || []).slice(0, 4).forEach(function(g){
+      chips += '<span class="chip">' + escapeHtml(g) + "</span>";
+    });
+    if(entry.communityScore != null){
+      chips += '<span class="chip chip-score">AniList ' + entry.communityScore + "%</span>";
+    }
+
+    var descHtml = "";
+    if(entry.description){
+      var isLong = entry.description.length > DESC_TRUNCATE;
+      descHtml =
+        '<div class="description-wrap">' +
+          '<p class="description-text">' + escapeHtml(entry.description) + "</p>" +
+        "</div>" +
+        (isLong ? '<button type="button" class="btn-link desc-toggle" data-action="toggle-description">Show more</button>' : "");
+    }
+
+    return (
+      '<div class="description-zone">' +
+        (chips ? '<div class="chip-row">' + chips + "</div>" : "") +
+        descHtml +
+      "</div>"
+    );
+  }
+
   function cardHtml(entry){
+    var isNew = !state.knownCardIds[entry.id];
+    state.knownCardIds[entry.id] = true;
+    var pulse = (state.lastTouchedEntryId === entry.id) ? " card-pulse" : "";
+    var enter = isNew ? " card-enter" : "";
+
+    var bannerStyle = entry.banner ? (' style="background-image:url(\'' + escapeHtml(entry.banner) + '\');"') : "";
+
     var posterHtml = entry.image
       ? '<img class="poster" src="' + escapeHtml(entry.image) + '" alt="" loading="lazy">'
       : '<div class="poster-fallback" aria-hidden="true">🎬</div>';
@@ -289,25 +356,35 @@
       ? entry.seasons.map(seasonHtml).join("")
       : '<p class="no-seasons">No seasons added yet.</p>';
 
+    var discoveringHtml = entry.discovering
+      ? '<p class="discovering-note">Looking for more seasons…</p>'
+      : "";
+
     var malLink = entry.apiId
       ? '<a class="mal-link" href="https://anilist.co/anime/' + encodeURIComponent(entry.apiId) + '" target="_blank" rel="noopener">View on AniList ↗</a>'
       : "<span></span>";
 
     return (
-      '<article class="card" data-id="' + entry.id + '" data-status="' + entry.status + '">' +
+      '<article class="card' + pulse + enter + '" data-id="' + entry.id + '" data-status="' + entry.status + '">' +
+        '<div class="card-banner"' + bannerStyle + "></div>" +
         '<div class="card-top">' +
           posterHtml +
           '<div class="card-meta">' +
             '<h3 class="card-title">' + titleInner + "</h3>" +
-            '<select class="status-select" data-action="status" data-status="' + entry.status + '">' + statusOptions + "</select>" +
-            '<div class="rating">' +
-              '<div class="rating-bars">' + ratingBars + "</div>" +
-              '<span class="rating-text">' + ratingText + "</span>" +
+            '<div class="card-meta-row">' +
+              '<select class="status-select" data-action="status" data-status="' + entry.status + '">' + statusOptions + "</select>" +
+              '<div class="rating">' +
+                '<div class="rating-bars">' + ratingBars + "</div>" +
+                '<span class="rating-text">' + ratingText + "</span>" +
+              "</div>" +
             "</div>" +
           "</div>" +
         "</div>" +
         progressHtml(entry) +
         '<div class="card-body">' +
+          descriptionZoneHtml(entry) +
+          '<div class="section-label">Seasons</div>' +
+          discoveringHtml +
           '<div class="seasons">' + seasonsHtml + "</div>" +
           '<div class="add-season-zone">' +
             '<a href="#" class="mini-toggle" data-action="toggle-add-season">+ Add season</a>' +
@@ -341,15 +418,22 @@
         "</div>";
       var btn = document.getElementById("emptyAddBtn");
       if(btn) btn.addEventListener("click", openModal);
+      state.lastTouchedEntryId = null;
+      state.lastToggledEp = null;
       return;
     }
 
     if(list.length === 0){
       grid.innerHTML = '<div class="empty-state"><div class="big">No matches</div><p>Try a different filter or search term.</p></div>';
+      state.lastTouchedEntryId = null;
+      state.lastToggledEp = null;
       return;
     }
 
     grid.innerHTML = list.map(cardHtml).join("");
+    // one-shot animation flags consumed — clear so they don't replay on unrelated re-renders
+    state.lastTouchedEntryId = null;
+    state.lastToggledEp = null;
   }
 
   function render(){
@@ -368,19 +452,26 @@
 
   function addEntry(data){
     var season = makeSeason(defaultSeasonLabel(data.format), data.episodes || null);
+    if(data.apiId){ season.apiId = data.apiId; }
     var entry = {
       id: uid(),
       apiId: data.apiId || null,
       title: data.title,
       image: data.image || "",
+      banner: "",
+      description: "",
+      genres: [],
+      communityScore: null,
       status: "plan",
       rating: null,
       seasons: [season],
+      discovering: !!data.apiId,
       updatedAt: Date.now()
     };
     state.entries.push(entry);
     saveEntries();
     render();
+    if(data.apiId){ runDiscovery(entry.id, data.apiId); }
     return entry;
   }
 
@@ -389,13 +480,126 @@
     if(!entry) return;
     if(!confirm('Remove "' + entry.title + '" from your log?')) return;
     state.entries = state.entries.filter(function(e){ return e.id !== id; });
+    delete state.knownCardIds[id];
     saveEntries();
     render();
     showToast("Removed from your log.");
   }
 
+  // ---------- AniList detail + relation-chain discovery ----------
+  function fetchMediaDetail(id){
+    var gql =
+      "query ($id: Int) { Media(id: $id, type: ANIME) { id title { romaji english } " +
+      "description(asHtml: true) coverImage { large medium } bannerImage episodes format seasonYear genres averageScore " +
+      "relations { edges { relationType node { id type format episodes seasonYear title { romaji english } } } } } }";
+
+    return fetch("https://graphql.anilist.co", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ query: gql, variables: { id: id } })
+    }).then(function(res){
+      if(!res.ok){ throw new Error("bad-response"); }
+      return res.json();
+    }).then(function(json){
+      if(json.errors || !json.data || !json.data.Media){ throw new Error("api-error"); }
+      return json.data.Media;
+    });
+  }
+
+  function relationOf(media, type){
+    if(!media || !media.relations || !media.relations.edges) return null;
+    var edge = media.relations.edges.find(function(e){
+      return e.relationType === type && e.node.type === "ANIME" &&
+        (e.node.format === "TV" || e.node.format === "ONA");
+    });
+    return edge ? edge.node : null;
+  }
+
+  // Walks AniList's PREQUEL/SEQUEL relation chain to build a chronological list of seasons.
+  // Only follows TV/ONA entries, so spin-offs/specials/movies don't get pulled in as "seasons".
+  function discoverChain(rootMedia){
+    var chain = [{ id: rootMedia.id, title: pickTitle(rootMedia.title), episodes: rootMedia.episodes }];
+    if(rootMedia.format !== "TV" && rootMedia.format !== "ONA") return Promise.resolve(chain);
+
+    function walk(direction, cursor, guard){
+      if(guard > 10) return Promise.resolve();
+      var node = relationOf(cursor, direction);
+      if(!node) return Promise.resolve();
+      return fetchMediaDetail(node.id).then(function(detail){
+        var item = { id: detail.id, title: pickTitle(detail.title), episodes: detail.episodes };
+        if(direction === "PREQUEL"){ chain.unshift(item); } else { chain.push(item); }
+        return walk(direction, detail, guard + 1);
+      }).catch(function(){ /* stop this direction quietly on any error */ });
+    }
+
+    return walk("PREQUEL", rootMedia, 0).then(function(){
+      return walk("SEQUEL", rootMedia, 0);
+    }).then(function(){ return chain; });
+  }
+
+  function applyDiscoveredChain(entry, chain){
+    var newSeasons = chain.map(function(c, i){
+      var label = chain.length > 1 ? ("Season " + (i + 1)) : "Season 1";
+      var season = makeSeason(label, c.episodes);
+      season.apiId = c.id;
+      season.sourceTitle = c.title;
+      var existing = entry.seasons.find(function(s){ return s.apiId === c.id; });
+      if(existing){
+        season.watched = existing.watched.slice();
+        recomputeSeasonLength(season);
+      }
+      return season;
+    });
+    entry.seasons = newSeasons;
+  }
+
+  function runDiscovery(entryId, apiId){
+    fetchMediaDetail(apiId).then(function(root){
+      var entry = findEntry(entryId);
+      if(!entry) return; // removed while we were looking it up
+
+      entry.description = stripHtml(root.description || "");
+      entry.genres = root.genres || [];
+      entry.communityScore = (typeof root.averageScore === "number") ? root.averageScore : null;
+      entry.banner = root.bannerImage || "";
+      if(!entry.image && root.coverImage){ entry.image = root.coverImage.large || root.coverImage.medium || ""; }
+
+      return discoverChain(root).then(function(chain){
+        var entry2 = findEntry(entryId);
+        if(!entry2) return;
+        if(chain.length > 1){
+          applyDiscoveredChain(entry2, chain);
+          autoStatus(entry2);
+        } else if(entry2.seasons[0]){
+          entry2.seasons[0].sourceTitle = chain[0].title;
+        }
+        entry2.discovering = false;
+        entry2.updatedAt = Date.now();
+        saveEntries();
+        render();
+      });
+    }).catch(function(){
+      var entry = findEntry(entryId);
+      if(entry){
+        entry.discovering = false;
+        saveEntries();
+        render();
+      }
+    });
+  }
+
   // ---------- grid: click delegation ----------
   document.getElementById("grid").addEventListener("click", function(ev){
+    // description expand/collapse is purely local UI state — no re-render needed
+    var descToggle = ev.target.closest('[data-action="toggle-description"]');
+    if(descToggle){
+      var zone = descToggle.closest(".description-zone");
+      var wrap = zone.querySelector(".description-wrap");
+      var expanded = wrap.classList.toggle("expanded");
+      descToggle.textContent = expanded ? "Show less" : "Show more";
+      return;
+    }
+
     var actionEl = ev.target.closest("[data-action]");
     if(!actionEl) return;
     var card = ev.target.closest(".card");
@@ -414,6 +618,7 @@
       var val = parseInt(actionEl.getAttribute("data-value"), 10);
       entry.rating = (entry.rating === val) ? null : val;
       entry.updatedAt = Date.now();
+      state.lastTouchedEntryId = entry.id;
       saveEntries(); render();
 
     } else if(action === "ep-toggle" && season){
@@ -423,10 +628,13 @@
       season.watched.sort(function(a, b){ return a - b; });
       autoStatus(entry);
       entry.updatedAt = Date.now();
+      state.lastTouchedEntryId = entry.id;
+      state.lastToggledEp = { seasonId: season.id, ep: ep };
       saveEntries(); render();
 
     } else if(action === "ep-extend" && season){
       season.length = (season.length || 12) + 1;
+      state.lastTouchedEntryId = entry.id;
       saveEntries(); render();
 
     } else if(action === "season-mark-all" && season){
@@ -436,12 +644,14 @@
       season.watched = arr;
       autoStatus(entry);
       entry.updatedAt = Date.now();
+      state.lastTouchedEntryId = entry.id;
       saveEntries(); render();
 
     } else if(action === "season-clear-all" && season){
       season.watched = [];
       autoStatus(entry);
       entry.updatedAt = Date.now();
+      state.lastTouchedEntryId = entry.id;
       saveEntries(); render();
 
     } else if(action === "season-remove" && season){
@@ -449,12 +659,13 @@
       entry.seasons = entry.seasons.filter(function(s){ return s.id !== seasonId; });
       autoStatus(entry);
       entry.updatedAt = Date.now();
+      state.lastTouchedEntryId = entry.id;
       saveEntries(); render();
 
     } else if(action === "toggle-add-season"){
       ev.preventDefault();
-      var zone = actionEl.closest(".add-season-zone");
-      zone.querySelector(".add-season-form").classList.toggle("open");
+      var azone = actionEl.closest(".add-season-zone");
+      azone.querySelector(".add-season-form").classList.toggle("open");
 
     } else if(action === "submit-add-season"){
       var zone2 = actionEl.closest(".add-season-zone");
@@ -464,6 +675,7 @@
       var totalVal = totalInput.value ? Math.max(0, parseInt(totalInput.value, 10)) : null;
       entry.seasons.push(makeSeason(label, totalVal));
       entry.updatedAt = Date.now();
+      state.lastTouchedEntryId = entry.id;
       saveEntries(); render();
       showToast('Added "' + label + '".');
     }
@@ -483,11 +695,13 @@
     if(action === "status"){
       entry.status = ev.target.value;
       entry.updatedAt = Date.now();
+      state.lastTouchedEntryId = entry.id;
       saveEntries(); render();
 
     } else if(action === "season-label" && season){
       season.label = ev.target.value.trim() || season.label;
       entry.updatedAt = Date.now();
+      state.lastTouchedEntryId = entry.id;
       saveEntries(); render();
 
     } else if(action === "season-total" && season){
@@ -496,6 +710,7 @@
       recomputeSeasonLength(season);
       autoStatus(entry);
       entry.updatedAt = Date.now();
+      state.lastTouchedEntryId = entry.id;
       saveEntries(); render();
     }
   });
@@ -612,7 +827,7 @@
     state.addedApiIds[item.apiId] = true;
     btn.disabled = true;
     btn.textContent = "Added ✓";
-    showToast('Added "' + item.title + '" to your log.');
+    showToast('Added "' + item.title + '" to your log — looking for more seasons and details…');
   });
 
   // AniList GraphQL search — public, CORS-enabled, no API key required.
@@ -640,7 +855,7 @@
         var items = media.map(function(m){
           return {
             apiId: m.id,
-            title: (m.title && (m.title.english || m.title.romaji)) || "Untitled",
+            title: pickTitle(m.title),
             image: m.coverImage ? (m.coverImage.large || m.coverImage.medium || "") : "",
             episodes: m.episodes || null,
             format: m.format || "",
@@ -700,6 +915,7 @@
         var ok = confirm("Import " + parsed.length + " title(s)? This replaces your current log of " + state.entries.length + " title(s).");
         if(!ok) return;
         state.entries = parsed.map(normalizeEntry);
+        state.knownCardIds = {};
         saveEntries();
         render();
         showToast("Import complete.");
