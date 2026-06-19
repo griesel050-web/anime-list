@@ -11,6 +11,8 @@ A personal anime watch tracker, split into plain HTML/CSS/JS so it's easy to rea
 - **Search & auto-add seasons** — looks up titles live via the [AniList](https://anilist.co) API and pulls in the poster, banner art, description, genres, and community score automatically. For shows AniList splits into multiple seasonal entries (e.g. *Attack on Titan* Season 1/2/3/4), it walks the prequel/sequel chain and adds every season it finds — each with its own episode count — instead of just the one you searched for. If a title isn't found, there's an "Add manually" fallback.
 - **Per-episode checklist** — every season gets a grid of episode numbers you can tap individually, so you can mark exactly which episodes you've seen (not just a running count) — handy for rewatches, skipped episodes, etc.
 - **Multiple seasons per show** — add more season/arc blocks yourself too via "+ Add season", each with its own checklist and total.
+- **Compact cards, expand for details** — each card shows just the poster, status, rating, genres, and description by default. Tap "Show seasons & episodes" to reveal the full episode checklist and remove/AniList-link controls.
+- **Drag to reorder** — grab the ⠿ handle in the top-right of any card's banner and drag it to reorder your list. The order is saved automatically.
 - **Ratings** — a quick 1–10 score per title (click a bar to set it, click the same one again to clear it).
 - **Status tracking** — Watching / Completed / Plan to Watch / Dropped, with gentle automatic nudges (e.g. finishing every known episode flips it to Completed) that you can always override.
 - **Export / Import JSON** — back up your log or move it to another browser/device.

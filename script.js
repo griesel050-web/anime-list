@@ -18,7 +18,9 @@
     addedApiIds: {},
     knownCardIds: {},      // ids already rendered once — used to gate the entrance animation
     lastTouchedEntryId: null,
-    lastToggledEp: null    // {seasonId, ep} — used for the brief "pop" feedback
+    lastToggledEp: null,   // {seasonId, ep} — used for the brief "pop" feedback
+    lastAddedSeasonId: null,
+    draggedId: null
   };
 
   // ---------- helpers ----------
@@ -124,6 +126,7 @@
       communityScore: (typeof raw.communityScore === "number") ? raw.communityScore : null,
       status: statusMeta[raw.status] ? raw.status : "plan",
       rating: (typeof raw.rating === "number") ? raw.rating : null,
+      collapsed: (typeof raw.collapsed === "boolean") ? raw.collapsed : true,
       seasons: [],
       discovering: false,
       updatedAt: raw.updatedAt || Date.now()
@@ -201,8 +204,8 @@
       return sum + e.seasons.reduce(function(s2, season){ return s2 + season.watched.length; }, 0);
     }, 0);
     document.getElementById("statsLine").innerHTML =
-      "<strong>" + totalTitles + "</strong> title" + (totalTitles === 1 ? "" : "s") +
-      " · <strong>" + totalEpisodes + "</strong> episode" + (totalEpisodes === 1 ? "" : "s") + " watched";
+      '<strong class="stat-pulse">' + totalTitles + "</strong> title" + (totalTitles === 1 ? "" : "s") +
+      ' · <strong class="stat-pulse">' + totalEpisodes + "</strong> episode" + (totalEpisodes === 1 ? "" : "s") + " watched";
   }
 
   function renderTabs(){
@@ -231,8 +234,7 @@
       var q = state.searchQuery.toLowerCase();
       list = list.filter(function(e){ return e.title.toLowerCase().indexOf(q) !== -1; });
     }
-    list.sort(function(a, b){ return (b.updatedAt || 0) - (a.updatedAt || 0); });
-    return list;
+    return list; // order follows state.entries, which drag-and-drop reordering mutates directly
   }
 
   function progressHtml(entry){
@@ -268,9 +270,10 @@
       ? '<a class="season-ani-link" href="https://anilist.co/anime/' + encodeURIComponent(season.apiId) + '" target="_blank" rel="noopener" title="View on AniList">↗</a>'
       : "";
     var titleAttr = season.sourceTitle ? (' title="' + escapeHtml(season.sourceTitle) + '"') : "";
+    var seasonEnter = (state.lastAddedSeasonId === season.id) ? " season-enter" : "";
 
     return (
-      '<div class="season" data-season-id="' + season.id + '">' +
+      '<div class="season' + seasonEnter + '" data-season-id="' + season.id + '">' +
         '<div class="season-head">' +
           '<input class="season-label-input" data-action="season-label" data-season-id="' + season.id +
             '" value="' + escapeHtml(season.label) + '"' + titleAttr + ' aria-label="Season label">' +
@@ -364,9 +367,13 @@
       ? '<a class="mal-link" href="https://anilist.co/anime/' + encodeURIComponent(entry.apiId) + '" target="_blank" rel="noopener">View on AniList ↗</a>'
       : "<span></span>";
 
+    var isOpen = !entry.collapsed;
+
     return (
-      '<article class="card' + pulse + enter + '" data-id="' + entry.id + '" data-status="' + entry.status + '">' +
-        '<div class="card-banner"' + bannerStyle + "></div>" +
+      '<article class="card' + pulse + enter + '" draggable="true" data-id="' + entry.id + '" data-status="' + entry.status + '">' +
+        '<div class="card-banner"' + bannerStyle + '>' +
+          '<span class="drag-handle" draggable="true" title="Drag to reorder">⠿</span>' +
+        "</div>" +
         '<div class="card-top">' +
           posterHtml +
           '<div class="card-meta">' +
@@ -383,22 +390,30 @@
         progressHtml(entry) +
         '<div class="card-body">' +
           descriptionZoneHtml(entry) +
-          '<div class="section-label">Seasons</div>' +
           discoveringHtml +
-          '<div class="seasons">' + seasonsHtml + "</div>" +
-          '<div class="add-season-zone">' +
-            '<a href="#" class="mini-toggle" data-action="toggle-add-season">+ Add season</a>' +
-            '<div class="mini-form add-season-form">' +
-              '<div class="row">' +
-                '<input class="as-label" type="text" placeholder="Label, e.g. Season 2">' +
-                '<input class="as-total" type="number" min="0" placeholder="Total eps (optional)">' +
+          '<button type="button" class="details-toggle" data-action="toggle-collapse" aria-expanded="' + isOpen + '">' +
+            '<span class="details-toggle-label">' + (isOpen ? "Hide seasons &amp; episodes" : "Show seasons &amp; episodes") + "</span>" +
+            '<span class="chevron">▾</span>' +
+          "</button>" +
+          '<div class="card-collapsible' + (isOpen ? " open" : "") + '">' +
+            '<div class="collapsible-inner">' +
+              '<div class="section-label">Seasons</div>' +
+              '<div class="seasons">' + seasonsHtml + "</div>" +
+              '<div class="add-season-zone">' +
+                '<a href="#" class="mini-toggle" data-action="toggle-add-season">+ Add season</a>' +
+                '<div class="mini-form add-season-form">' +
+                  '<div class="row">' +
+                    '<input class="as-label" type="text" placeholder="Label, e.g. Season 2">' +
+                    '<input class="as-total" type="number" min="0" placeholder="Total eps (optional)">' +
+                  "</div>" +
+                  '<button type="button" class="btn btn-primary btn-small" data-action="submit-add-season" style="align-self:flex-start;">Add season</button>' +
+                "</div>" +
               "</div>" +
-              '<button type="button" class="btn btn-primary btn-small" data-action="submit-add-season" style="align-self:flex-start;">Add season</button>' +
+              '<div class="card-footer">' +
+                malLink +
+                '<button type="button" class="remove-btn" data-action="remove-anime">Remove</button>' +
+              "</div>" +
             "</div>" +
-          "</div>" +
-          '<div class="card-footer">' +
-            malLink +
-            '<button type="button" class="remove-btn" data-action="remove-anime">Remove</button>' +
           "</div>" +
         "</div>" +
       "</article>"
@@ -420,6 +435,7 @@
       if(btn) btn.addEventListener("click", openModal);
       state.lastTouchedEntryId = null;
       state.lastToggledEp = null;
+      state.lastAddedSeasonId = null;
       return;
     }
 
@@ -427,6 +443,7 @@
       grid.innerHTML = '<div class="empty-state"><div class="big">No matches</div><p>Try a different filter or search term.</p></div>';
       state.lastTouchedEntryId = null;
       state.lastToggledEp = null;
+      state.lastAddedSeasonId = null;
       return;
     }
 
@@ -434,6 +451,7 @@
     // one-shot animation flags consumed — clear so they don't replay on unrelated re-renders
     state.lastTouchedEntryId = null;
     state.lastToggledEp = null;
+    state.lastAddedSeasonId = null;
   }
 
   function render(){
@@ -464,6 +482,7 @@
       communityScore: null,
       status: "plan",
       rating: null,
+      collapsed: true,
       seasons: [season],
       discovering: !!data.apiId,
       updatedAt: Date.now()
@@ -484,6 +503,21 @@
     saveEntries();
     render();
     showToast("Removed from your log.");
+  }
+
+  // Moves draggedId next to targetId in the master array. Works regardless of any active
+  // filter/search, since those only ever render a sub-view of state.entries' own order.
+  function reorderEntries(draggedId, targetId, insertAfter){
+    if(draggedId === targetId) return;
+    var fromIdx = state.entries.findIndex(function(e){ return e.id === draggedId; });
+    if(fromIdx === -1) return;
+    var item = state.entries.splice(fromIdx, 1)[0];
+    var toIdx = state.entries.findIndex(function(e){ return e.id === targetId; });
+    if(toIdx === -1){ state.entries.splice(fromIdx, 0, item); return; } // target vanished — put it back
+    var insertIdx = insertAfter ? toIdx + 1 : toIdx;
+    state.entries.splice(insertIdx, 0, item);
+    saveEntries();
+    render();
   }
 
   // ---------- AniList detail + relation-chain discovery ----------
@@ -600,6 +634,23 @@
       return;
     }
 
+    // seasons/episodes collapse toggle — also a local DOM toggle, so the open/close animates smoothly
+    var collapseToggle = ev.target.closest('[data-action="toggle-collapse"]');
+    if(collapseToggle){
+      var cardEl = collapseToggle.closest(".card");
+      var collapsible = cardEl.querySelector(".card-collapsible");
+      var isOpen = collapsible.classList.toggle("open");
+      collapseToggle.setAttribute("aria-expanded", String(isOpen));
+      var label = collapseToggle.querySelector(".details-toggle-label");
+      if(label) label.textContent = isOpen ? "Hide seasons & episodes" : "Show seasons & episodes";
+      var entryForCollapse = findEntry(cardEl.getAttribute("data-id"));
+      if(entryForCollapse){
+        entryForCollapse.collapsed = !isOpen;
+        saveEntries(); // persist the preference without triggering a full re-render
+      }
+      return;
+    }
+
     var actionEl = ev.target.closest("[data-action]");
     if(!actionEl) return;
     var card = ev.target.closest(".card");
@@ -673,9 +724,11 @@
       var totalInput = zone2.querySelector(".as-total");
       var label = labelInput.value.trim() || ("Season " + (entry.seasons.length + 1));
       var totalVal = totalInput.value ? Math.max(0, parseInt(totalInput.value, 10)) : null;
-      entry.seasons.push(makeSeason(label, totalVal));
+      var newSeason = makeSeason(label, totalVal);
+      entry.seasons.push(newSeason);
       entry.updatedAt = Date.now();
       state.lastTouchedEntryId = entry.id;
+      state.lastAddedSeasonId = newSeason.id;
       saveEntries(); render();
       showToast('Added "' + label + '".');
     }
@@ -715,12 +768,63 @@
     }
   });
 
-  // ---------- tabs & filter search ----------
+  // ---------- drag-and-drop reordering ----------
+  // Drag is only allowed to start from the grip handle — dragstart is cancelled otherwise,
+  // so buttons, inputs, and links inside the card keep working normally.
+  var grid = document.getElementById("grid");
+
+  grid.addEventListener("dragstart", function(ev){
+    var card = ev.target.closest(".card");
+    if(!card) return;
+    var handle = ev.target.closest(".drag-handle");
+    if(!handle){ ev.preventDefault(); return; }
+    state.draggedId = card.getAttribute("data-id");
+    card.classList.add("dragging");
+    ev.dataTransfer.effectAllowed = "move";
+    try{ ev.dataTransfer.setData("text/plain", state.draggedId); }catch(e){ /* some browsers are picky here — harmless */ }
+  });
+
+  grid.addEventListener("dragover", function(ev){
+    if(!state.draggedId) return;
+    var targetCard = ev.target.closest(".card");
+    if(!targetCard) return;
+    ev.preventDefault(); // required to allow dropping
+    Array.prototype.forEach.call(grid.querySelectorAll(".drag-over-top, .drag-over-bottom"), function(c){
+      c.classList.remove("drag-over-top", "drag-over-bottom");
+    });
+    if(targetCard.getAttribute("data-id") === state.draggedId) return;
+    var rect = targetCard.getBoundingClientRect();
+    var after = (ev.clientY - rect.top) > rect.height / 2;
+    targetCard.classList.add(after ? "drag-over-bottom" : "drag-over-top");
+  });
+
+  grid.addEventListener("drop", function(ev){
+    if(!state.draggedId) return;
+    var targetCard = ev.target.closest(".card");
+    if(!targetCard) return;
+    ev.preventDefault();
+    var targetId = targetCard.getAttribute("data-id");
+    var rect = targetCard.getBoundingClientRect();
+    var after = (ev.clientY - rect.top) > rect.height / 2;
+    reorderEntries(state.draggedId, targetId, after);
+    state.draggedId = null;
+  });
+
+  grid.addEventListener("dragend", function(){
+    Array.prototype.forEach.call(grid.querySelectorAll(".dragging"), function(c){ c.classList.remove("dragging"); });
+    Array.prototype.forEach.call(grid.querySelectorAll(".drag-over-top, .drag-over-bottom"), function(c){
+      c.classList.remove("drag-over-top", "drag-over-bottom");
+    });
+    state.draggedId = null;
+  });
+
+
   document.getElementById("tabs").addEventListener("click", function(ev){
     var btn = ev.target.closest(".tab");
     if(!btn) return;
     state.filterStatus = btn.getAttribute("data-filter");
-    render();
+    renderTabs();
+    renderGrid();
   });
 
   document.getElementById("searchMine").addEventListener("input", function(ev){
@@ -784,7 +888,7 @@
     document.getElementById("manualImage").value = "";
   });
 
-  function resultRowHtml(item){
+  function resultRowHtml(item, index){
     var img = item.image
       ? '<img src="' + escapeHtml(item.image) + '" alt="">'
       : '<div class="poster-fallback" aria-hidden="true">🎬</div>';
@@ -792,7 +896,7 @@
       .filter(Boolean).join(" · ");
     var already = state.entries.some(function(e){ return e.apiId === item.apiId; }) || state.addedApiIds[item.apiId];
     return (
-      '<div class="result-row">' +
+      '<div class="result-row" style="animation-delay:' + Math.min(index * 40, 280) + 'ms">' +
         img +
         '<div class="result-info">' +
           '<div class="result-title">' + escapeHtml(item.title) + "</div>" +

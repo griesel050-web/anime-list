@@ -215,6 +215,25 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   inset: 0;
   background: linear-gradient(180deg, rgba(18,16,24,0) 35%, var(--surface) 100%);
 }
+.drag-handle{
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  font-size: 1.05rem;
+  line-height: 1;
+  color: rgba(241,236,226,0.8);
+  background: rgba(12,11,17,0.4);
+  border-radius: 5px;
+  padding: 3px 7px;
+  cursor: grab;
+  user-select: none;
+}
+.drag-handle:hover{ background: rgba(12,11,17,0.6); color: var(--watching); }
+.drag-handle:active{ cursor: grabbing; }
+.card.dragging{ opacity: 0.45; }
+.card.drag-over-top{ box-shadow: var(--shadow), inset 0 3px 0 0 var(--watching); }
+.card.drag-over-bottom{ box-shadow: var(--shadow), inset 0 -3px 0 0 var(--watching); }
 .card-top{
   display: flex;
   gap: 12px;
@@ -360,6 +379,15 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   0%, 100%{ opacity: 0.55; }
   50%{ opacity: 1; }
 }
+@media (prefers-reduced-motion: no-preference){
+  .stat-pulse{ animation: statPulse .4s ease; display: inline-block; }
+  .season-enter{ animation: cardIn .3s ease both; }
+}
+@keyframes statPulse{
+  0%{ transform: scale(1); }
+  40%{ transform: scale(1.22); color: var(--watching); }
+  100%{ transform: scale(1); }
+}
 
 /* ---------- Description / genres / score ---------- */
 .section-label{
@@ -385,6 +413,11 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   border: 1px solid var(--border);
   color: var(--text-dim);
   white-space: nowrap;
+  transition: transform .12s ease, border-color .12s ease;
+}
+.chip:hover{ border-color: var(--text-dim); }
+@media (prefers-reduced-motion: no-preference){
+  .chip:hover{ transform: translateY(-1px); }
 }
 .chip-score{
   color: var(--score-chip);
@@ -423,6 +456,39 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
 }
 .season-ani-link:hover{ color: var(--watching); }
 
+
+.details-toggle{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  padding: 8px 0;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.details-toggle:hover{ color: var(--watching); }
+.details-toggle .chevron{
+  font-size: 0.68rem;
+  display: inline-block;
+}
+@media (prefers-reduced-motion: no-preference){
+  .details-toggle .chevron{ transition: transform .25s ease; }
+}
+.details-toggle[aria-expanded="true"] .chevron{ transform: rotate(180deg); }
+
+.card-collapsible{
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+@media (prefers-reduced-motion: no-preference){
+  .card-collapsible{ transition: max-height .35s ease, opacity .25s ease; }
+}
+.card-collapsible.open{ max-height: 3000px; opacity: 1; }
+.collapsible-inner{ padding-top: 10px; }
 
 .card-body{ padding: 12px 14px 14px; }
 .seasons{ display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
@@ -650,6 +716,9 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   border-radius: 8px;
   background: var(--surface-2);
 }
+@media (prefers-reduced-motion: no-preference){
+  .result-row{ animation: cardIn .3s ease both; }
+}
 .result-row img, .result-row .poster-fallback{
   width: 38px; height: 54px;
   border-radius: 4px;
@@ -709,7 +778,7 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   box-shadow: var(--shadow);
   opacity: 0;
   pointer-events: none;
-  transition: opacity .2s ease, transform .2s ease;
+  transition: opacity .25s ease, transform .35s cubic-bezier(0.34, 1.56, 0.64, 1);
   z-index: 100;
 }
 .toast.show{
