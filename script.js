@@ -18,7 +18,7 @@
     addedApiIds: {},
     knownCardIds: {},      // ids already rendered once — used to gate the entrance animation
     lastTouchedEntryId: null,
-    lastToggledEp: null,   // {seasonId, ep} — used for the brief "pop" feedback
+    lastToggledEps: null,  // {seasonId, eps:[...]} — used for the brief "pop" feedback
     lastAddedSeasonId: null,
     draggedId: null
   };
@@ -63,7 +63,7 @@
     }
   }
 
-  function makeSeason(label, total){
+  function makeSeason(label, total, duration){
     var season = {
       id: uid(),
       label: label || "Season 1",
@@ -71,7 +71,8 @@
       watched: [],
       length: null,
       apiId: null,
-      sourceTitle: ""
+      sourceTitle: "",
+      duration: (typeof duration === "number" && duration > 0) ? duration : null
     };
     recomputeSeasonLength(season);
     return season;
@@ -141,7 +142,8 @@
           watched: Array.isArray(s.watched) ? s.watched.slice().filter(function(n){ return Number.isFinite(n); }) : [],
           length: (typeof s.length === "number") ? s.length : null,
           apiId: s.apiId || null,
-          sourceTitle: s.sourceTitle || ""
+          sourceTitle: s.sourceTitle || "",
+          duration: (typeof s.duration === "number" && s.duration > 0) ? s.duration : null
         };
         recomputeSeasonLength(season);
         return season;
@@ -198,14 +200,31 @@
   }
 
   // ---------- stats & tabs ----------
+  var FALLBACK_EP_MINUTES = 24; // typical TV anime episode length, used when AniList has no duration on file (e.g. manual entries)
+
+  function formatWatchTime(totalMinutes){
+    if(totalMinutes < 60) return totalMinutes + "m";
+    var totalHours = Math.floor(totalMinutes / 60);
+    var remM = totalMinutes % 60;
+    if(totalHours < 24) return totalHours + "h" + (remM ? " " + remM + "m" : "");
+    var days = Math.floor(totalHours / 24);
+    var remH = totalHours % 24;
+    return days + "d" + (remH ? " " + remH + "h" : "");
+  }
+
   function renderStats(){
     var totalTitles = state.entries.length;
-    var totalEpisodes = state.entries.reduce(function(sum, e){
-      return sum + e.seasons.reduce(function(s2, season){ return s2 + season.watched.length; }, 0);
-    }, 0);
+    var totalEpisodes = 0, totalMinutes = 0;
+    state.entries.forEach(function(e){
+      e.seasons.forEach(function(season){
+        totalEpisodes += season.watched.length;
+        totalMinutes += season.watched.length * (season.duration || FALLBACK_EP_MINUTES);
+      });
+    });
     document.getElementById("statsLine").innerHTML =
       '<strong class="stat-pulse">' + totalTitles + "</strong> title" + (totalTitles === 1 ? "" : "s") +
-      ' · <strong class="stat-pulse">' + totalEpisodes + "</strong> episode" + (totalEpisodes === 1 ? "" : "s") + " watched";
+      ' · <strong class="stat-pulse">' + totalEpisodes + "</strong> episode" + (totalEpisodes === 1 ? "" : "s") + " watched" +
+      ' · <strong class="stat-pulse">' + formatWatchTime(totalMinutes) + "</strong> watch time";
   }
 
   function renderTabs(){
@@ -257,7 +276,7 @@
     var cells = "";
     for(var i = 1; i <= length; i++){
       var watched = season.watched.indexOf(i) !== -1;
-      var justToggled = state.lastToggledEp && state.lastToggledEp.seasonId === season.id && state.lastToggledEp.ep === i;
+      var justToggled = state.lastToggledEps && state.lastToggledEps.seasonId === season.id && state.lastToggledEps.eps.indexOf(i) !== -1;
       cells += '<button type="button" class="ep-cell' + (watched ? " watched" : "") + (justToggled ? " ep-pop" : "") + '" data-action="ep-toggle" data-season-id="' + season.id +
         '" data-ep="' + i + '" aria-pressed="' + watched + '" title="Episode ' + i + (watched ? " — watched" : " — not watched yet") + '">' + i + "</button>";
     }
@@ -297,9 +316,6 @@
   var DESC_TRUNCATE = 150;
 
   function descriptionZoneHtml(entry){
-    var hasMeta = entry.description || (entry.genres && entry.genres.length) || (entry.communityScore != null);
-    if(!hasMeta && !entry.discovering) return "";
-
     var chips = "";
     (entry.genres || []).slice(0, 4).forEach(function(g){
       chips += '<span class="chip">' + escapeHtml(g) + "</span>";
@@ -308,20 +324,18 @@
       chips += '<span class="chip chip-score">AniList ' + entry.communityScore + "%</span>";
     }
 
-    var descHtml = "";
-    if(entry.description){
-      var isLong = entry.description.length > DESC_TRUNCATE;
-      descHtml =
-        '<div class="description-wrap">' +
-          '<p class="description-text">' + escapeHtml(entry.description) + "</p>" +
-        "</div>" +
-        (isLong ? '<button type="button" class="btn-link desc-toggle" data-action="toggle-description">Show more</button>' : "");
-    }
+    var hasDesc = !!entry.description;
+    var text = hasDesc ? entry.description : "No synopsis available yet.";
+    var isLong = hasDesc && entry.description.length > DESC_TRUNCATE;
 
     return (
       '<div class="description-zone">' +
-        (chips ? '<div class="chip-row">' + chips + "</div>" : "") +
-        descHtml +
+        '<div class="chip-row">' + chips + "</div>" +
+        '<div class="description-wrap">' +
+          '<p class="description-text' + (hasDesc ? "" : " placeholder") + '">' + escapeHtml(text) + "</p>" +
+        "</div>" +
+        '<button type="button" class="btn-link desc-toggle" data-action="toggle-description"' +
+          (isLong ? "" : ' style="visibility:hidden" tabindex="-1"') + ">Show more</button>" +
       "</div>"
     );
   }
@@ -391,6 +405,7 @@
         '<div class="card-body">' +
           descriptionZoneHtml(entry) +
           discoveringHtml +
+          '<div class="body-spacer"></div>' +
           '<button type="button" class="details-toggle" data-action="toggle-collapse" aria-expanded="' + isOpen + '">' +
             '<span class="details-toggle-label">' + (isOpen ? "Hide seasons &amp; episodes" : "Show seasons &amp; episodes") + "</span>" +
             '<span class="chevron">▾</span>' +
@@ -434,7 +449,7 @@
       var btn = document.getElementById("emptyAddBtn");
       if(btn) btn.addEventListener("click", openModal);
       state.lastTouchedEntryId = null;
-      state.lastToggledEp = null;
+      state.lastToggledEps = null;
       state.lastAddedSeasonId = null;
       return;
     }
@@ -442,7 +457,7 @@
     if(list.length === 0){
       grid.innerHTML = '<div class="empty-state"><div class="big">No matches</div><p>Try a different filter or search term.</p></div>';
       state.lastTouchedEntryId = null;
-      state.lastToggledEp = null;
+      state.lastToggledEps = null;
       state.lastAddedSeasonId = null;
       return;
     }
@@ -450,7 +465,7 @@
     grid.innerHTML = list.map(cardHtml).join("");
     // one-shot animation flags consumed — clear so they don't replay on unrelated re-renders
     state.lastTouchedEntryId = null;
-    state.lastToggledEp = null;
+    state.lastToggledEps = null;
     state.lastAddedSeasonId = null;
   }
 
@@ -469,7 +484,7 @@
   }
 
   function addEntry(data){
-    var season = makeSeason(defaultSeasonLabel(data.format), data.episodes || null);
+    var season = makeSeason(defaultSeasonLabel(data.format), data.episodes || null, data.duration || null);
     if(data.apiId){ season.apiId = data.apiId; }
     var entry = {
       id: uid(),
@@ -524,7 +539,7 @@
   function fetchMediaDetail(id){
     var gql =
       "query ($id: Int) { Media(id: $id, type: ANIME) { id title { romaji english } " +
-      "description(asHtml: true) coverImage { large medium } bannerImage episodes format seasonYear genres averageScore " +
+      "description(asHtml: true) coverImage { large medium } bannerImage episodes duration format seasonYear genres averageScore " +
       "relations { edges { relationType node { id type format episodes seasonYear title { romaji english } } } } } }";
 
     return fetch("https://graphql.anilist.co", {
@@ -552,7 +567,7 @@
   // Walks AniList's PREQUEL/SEQUEL relation chain to build a chronological list of seasons.
   // Only follows TV/ONA entries, so spin-offs/specials/movies don't get pulled in as "seasons".
   function discoverChain(rootMedia){
-    var chain = [{ id: rootMedia.id, title: pickTitle(rootMedia.title), episodes: rootMedia.episodes }];
+    var chain = [{ id: rootMedia.id, title: pickTitle(rootMedia.title), episodes: rootMedia.episodes, duration: rootMedia.duration || null }];
     if(rootMedia.format !== "TV" && rootMedia.format !== "ONA") return Promise.resolve(chain);
 
     function walk(direction, cursor, guard){
@@ -560,7 +575,7 @@
       var node = relationOf(cursor, direction);
       if(!node) return Promise.resolve();
       return fetchMediaDetail(node.id).then(function(detail){
-        var item = { id: detail.id, title: pickTitle(detail.title), episodes: detail.episodes };
+        var item = { id: detail.id, title: pickTitle(detail.title), episodes: detail.episodes, duration: detail.duration || null };
         if(direction === "PREQUEL"){ chain.unshift(item); } else { chain.push(item); }
         return walk(direction, detail, guard + 1);
       }).catch(function(){ /* stop this direction quietly on any error */ });
@@ -574,7 +589,7 @@
   function applyDiscoveredChain(entry, chain){
     var newSeasons = chain.map(function(c, i){
       var label = chain.length > 1 ? ("Season " + (i + 1)) : "Season 1";
-      var season = makeSeason(label, c.episodes);
+      var season = makeSeason(label, c.episodes, c.duration);
       season.apiId = c.id;
       season.sourceTitle = c.title;
       var existing = entry.seasons.find(function(s){ return s.apiId === c.id; });
@@ -675,12 +690,21 @@
     } else if(action === "ep-toggle" && season){
       var ep = parseInt(actionEl.getAttribute("data-ep"), 10);
       var idx = season.watched.indexOf(ep);
-      if(idx === -1){ season.watched.push(ep); } else { season.watched.splice(idx, 1); }
+      if(idx === -1){
+        // marking watched — fill in any earlier gaps too, so progress reads as "watched through ep N"
+        var newlyFilled = [];
+        for(var fillEp = 1; fillEp <= ep; fillEp++){
+          if(season.watched.indexOf(fillEp) === -1){ season.watched.push(fillEp); newlyFilled.push(fillEp); }
+        }
+        state.lastToggledEps = { seasonId: season.id, eps: newlyFilled };
+      } else {
+        season.watched.splice(idx, 1);
+        state.lastToggledEps = null;
+      }
       season.watched.sort(function(a, b){ return a - b; });
       autoStatus(entry);
       entry.updatedAt = Date.now();
       state.lastTouchedEntryId = entry.id;
-      state.lastToggledEp = { seasonId: season.id, ep: ep };
       saveEntries(); render();
 
     } else if(action === "ep-extend" && season){
@@ -941,7 +965,7 @@
 
     var gql =
       "query ($s: String) { Page(perPage: 8) { media(search: $s, type: ANIME, sort: SEARCH_MATCH) { " +
-      "id title { romaji english } coverImage { large medium } episodes format seasonYear } } }";
+      "id title { romaji english } coverImage { large medium } episodes duration format seasonYear } } }";
 
     fetch("https://graphql.anilist.co", {
       method: "POST",
@@ -962,6 +986,7 @@
             title: pickTitle(m.title),
             image: m.coverImage ? (m.coverImage.large || m.coverImage.medium || "") : "",
             episodes: m.episodes || null,
+            duration: m.duration || null,
             format: m.format || "",
             year: m.seasonYear || null
           };

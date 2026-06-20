@@ -40,6 +40,23 @@ body{
   font-family: var(--font-body);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  position: relative;
+}
+body::before{
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background: radial-gradient(600px 400px at 20% 10%, rgba(242,161,84,0.05), transparent),
+              radial-gradient(500px 350px at 85% 30%, rgba(126,156,209,0.05), transparent);
+}
+@media (prefers-reduced-motion: no-preference){
+  body::before{ animation: ambientDrift 22s ease-in-out infinite alternate; }
+}
+@keyframes ambientDrift{
+  0%{ transform: translate(0, 0); }
+  100%{ transform: translate(2%, 3%); }
 }
 a{ color: var(--watching); text-decoration: none; }
 a:hover{ text-decoration: underline; }
@@ -179,7 +196,6 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
   gap: 16px;
-  align-items: start;
 }
 .card{
   background: var(--surface);
@@ -215,6 +231,22 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   inset: 0;
   background: linear-gradient(180deg, rgba(18,16,24,0) 35%, var(--surface) 100%);
 }
+.card-banner::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,0.05) 50%, transparent 65%);
+  background-size: 220% 220%;
+  background-position: -40% -40%;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference){
+  .card-banner::before{ animation: bannerSheen 7s ease-in-out infinite; }
+}
+@keyframes bannerSheen{
+  0%, 60%{ background-position: -40% -40%; }
+  100%{ background-position: 40% 40%; }
+}
 .drag-handle{
   position: absolute;
   top: 8px;
@@ -229,7 +261,14 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   cursor: grab;
   user-select: none;
 }
-.drag-handle:hover{ background: rgba(12,11,17,0.6); color: var(--watching); }
+@media (prefers-reduced-motion: no-preference){
+  .drag-handle{ animation: handleBreathe 3.2s ease-in-out infinite; }
+}
+@keyframes handleBreathe{
+  0%, 100%{ opacity: 0.65; }
+  50%{ opacity: 1; }
+}
+.drag-handle:hover{ background: rgba(12,11,17,0.6); color: var(--watching); opacity: 1; animation-play-state: paused; }
 .drag-handle:active{ cursor: grabbing; }
 .card.dragging{ opacity: 0.45; }
 .card.drag-over-top{ box-shadow: var(--shadow), inset 0 3px 0 0 var(--watching); }
@@ -266,6 +305,13 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   border: 2px solid var(--surface);
   box-shadow: 0 4px 10px rgba(0,0,0,0.45);
 }
+@media (prefers-reduced-motion: no-preference){
+  .poster-fallback{ animation: gentleFloat 3.6s ease-in-out infinite; }
+}
+@keyframes gentleFloat{
+  0%, 100%{ transform: translateY(0); }
+  50%{ transform: translateY(-3px); }
+}
 .card-meta{ min-width: 0; flex: 1; padding-bottom: 4px; }
 .card-title{
   font-weight: 600;
@@ -273,6 +319,11 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   line-height: 1.25;
   margin: 0 0 8px;
   word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.5em;
 }
 .card-title a{ color: var(--text); }
 .card-meta-row{
@@ -388,6 +439,10 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   40%{ transform: scale(1.22); color: var(--watching); }
   100%{ transform: scale(1); }
 }
+@keyframes scoreGlow{
+  0%, 100%{ box-shadow: 0 0 0 0 rgba(232,196,104,0); }
+  50%{ box-shadow: 0 0 6px 1px rgba(232,196,104,0.35); }
+}
 
 /* ---------- Description / genres / score ---------- */
 .section-label{
@@ -404,6 +459,7 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 8px;
+  min-height: 24px;
 }
 .chip{
   font-size: 0.68rem;
@@ -425,7 +481,11 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   background: rgba(232,196,104,0.12);
   font-weight: 600;
 }
+@media (prefers-reduced-motion: no-preference){
+  .chip-score{ animation: scoreGlow 3s ease-in-out infinite; }
+}
 .description-wrap{
+  min-height: 38px;
   max-height: 38px;
   overflow: hidden;
 }
@@ -439,6 +499,7 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   color: var(--text-dim);
   margin: 0;
 }
+.description-text.placeholder{ color: var(--text-faint); font-style: italic; }
 .desc-toggle{ margin-top: 4px; margin-bottom: 4px; }
 .discovering-note{
   font-size: 0.76rem;
@@ -490,7 +551,8 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
 .card-collapsible.open{ max-height: 3000px; opacity: 1; }
 .collapsible-inner{ padding-top: 10px; }
 
-.card-body{ padding: 12px 14px 14px; }
+.card-body{ padding: 12px 14px 14px; flex: 1; display: flex; flex-direction: column; }
+.body-spacer{ flex: 1; }
 .seasons{ display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
 .no-seasons{ font-size: 0.8rem; color: var(--text-faint); margin: 4px 0; }
 
