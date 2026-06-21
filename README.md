@@ -15,7 +15,10 @@ A personal anime watch tracker, split into plain HTML/CSS/JS so it's easy to rea
 - **Per-episode checklist with auto-fill** — tap an episode to mark it watched; everything before it fills in automatically (so tapping episode 6 marks 1–6). Unmarking only removes that one episode, so you can still poke holes for rewatches/skips afterward.
 - **Watch-time estimate** — the header now shows roughly how much time you've spent watching, using each show's real per-episode runtime from AniList when available (falling back to ~24 min/episode otherwise).
 - **Compact cards, expand for details** — each card shows just the poster, status, rating, genres, and description by default. Tap "Show seasons & episodes" to reveal the full episode checklist and remove/AniList-link controls.
-- **Drag to reorder** — grab the ⠿ handle in the top-right of any card's banner and drag it to reorder your list. The order is saved automatically.
+- **Sort modes** — Manual order (drag-and-drop), Title A–Z, Rating (high first), or Recently updated. Switching away from Manual and back preserves your drag order underneath.
+- **Random pick** — the 🎲 button suggests something from your Plan to Watch list (or Watching, or anything, if those are empty), scrolls to it, and gives it a little glow.
+- **Personal notes** — a free-text notes box per title (inside the expanded view) for things like "watching with my sister" or "paused at the beach episode."
+- **Drag to reorder** — grab the ⠿ handle in the top-right of any card's banner and drag it to reorder your list. Only works while sort mode is set to "Manual order."
 - **Ratings** — a quick 1–10 score per title (click a bar to set it, click the same one again to clear it).
 - **Status tracking** — Watching / Completed / Plan to Watch / Dropped, with gentle automatic nudges (e.g. finishing every known episode flips it to Completed) that you can always override.
 - **Export / Import JSON** — back up your log or move it to another browser/device.
@@ -46,7 +49,7 @@ No build step, no dependencies to install.
 
 ## Ad slot
 
-There's a single responsive banner ad below the grid (728×90 on wider screens, 320×50 on narrow ones), labeled "Advertisement" so it's clear what it is. It uses the network/keys from your `ads.txt` — specifically just the two plain iframe banner sizes, not the native-banner widget, since that format tends to render as a "recommended content" block that would clash with this site's look.
+There are two banner placements: a 468×60 banner under the header (desktop/tablet only — skipped on narrow screens so mobile isn't sandwiched between two ads), and the responsive 728×90/320×50 banner below the grid. Both are labeled "Advertisement" so it's clear what they are. These use the network/keys from your `ads.txt` — specifically the plain iframe banner sizes, not the native-banner widget, since that format tends to render as a "recommended content" block that would clash with this site's look.
 
 A couple of things worth knowing:
 - Ad-blockers (uBlock Origin, Brave's built-in blocker, etc.) commonly block this particular network, so a chunk of visitors will just see an empty bordered box where the ad would be — that's expected and harmless, not a bug.

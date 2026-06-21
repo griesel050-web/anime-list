@@ -20,7 +20,8 @@
     lastTouchedEntryId: null,
     lastToggledEps: null,  // {seasonId, eps:[...]} — used for the brief "pop" feedback
     lastAddedSeasonId: null,
-    draggedId: null
+    draggedId: null,
+    sortMode: "manual"
   };
 
   // ---------- helpers ----------
@@ -128,6 +129,7 @@
       status: statusMeta[raw.status] ? raw.status : "plan",
       rating: (typeof raw.rating === "number") ? raw.rating : null,
       collapsed: (typeof raw.collapsed === "boolean") ? raw.collapsed : true,
+      notes: raw.notes || "",
       seasons: [],
       discovering: false,
       updatedAt: raw.updatedAt || Date.now()
@@ -253,7 +255,15 @@
       var q = state.searchQuery.toLowerCase();
       list = list.filter(function(e){ return e.title.toLowerCase().indexOf(q) !== -1; });
     }
-    return list; // order follows state.entries, which drag-and-drop reordering mutates directly
+    if(state.sortMode === "title"){
+      list.sort(function(a, b){ return a.title.toLowerCase().localeCompare(b.title.toLowerCase()); });
+    } else if(state.sortMode === "rating"){
+      list.sort(function(a, b){ return (b.rating == null ? -1 : b.rating) - (a.rating == null ? -1 : a.rating); });
+    } else if(state.sortMode === "updated"){
+      list.sort(function(a, b){ return (b.updatedAt || 0) - (a.updatedAt || 0); });
+    }
+    // "manual" mode (default): no sort — order follows state.entries, which drag-and-drop mutates directly
+    return list;
   }
 
   function progressHtml(entry){
@@ -424,6 +434,10 @@
                   '<button type="button" class="btn btn-primary btn-small" data-action="submit-add-season" style="align-self:flex-start;">Add season</button>' +
                 "</div>" +
               "</div>" +
+              '<div class="notes-zone">' +
+                '<div class="section-label">Your notes</div>' +
+                '<textarea class="notes-input" data-action="notes" placeholder="Thoughts, rewatch plans, where you left off…">' + escapeHtml(entry.notes) + "</textarea>" +
+              "</div>" +
               '<div class="card-footer">' +
                 malLink +
                 '<button type="button" class="remove-btn" data-action="remove-anime">Remove</button>' +
@@ -498,6 +512,7 @@
       status: "plan",
       rating: null,
       collapsed: true,
+      notes: "",
       seasons: [season],
       discovering: !!data.apiId,
       updatedAt: Date.now()
@@ -775,6 +790,11 @@
       state.lastTouchedEntryId = entry.id;
       saveEntries(); render();
 
+    } else if(action === "notes"){
+      entry.notes = ev.target.value;
+      entry.updatedAt = Date.now();
+      saveEntries(); render();
+
     } else if(action === "season-label" && season){
       season.label = ev.target.value.trim() || season.label;
       entry.updatedAt = Date.now();
@@ -802,6 +822,11 @@
     if(!card) return;
     var handle = ev.target.closest(".drag-handle");
     if(!handle){ ev.preventDefault(); return; }
+    if(state.sortMode !== "manual"){
+      ev.preventDefault();
+      showToast('Switch to "Manual order" to drag and reorder.');
+      return;
+    }
     state.draggedId = card.getAttribute("data-id");
     card.classList.add("dragging");
     ev.dataTransfer.effectAllowed = "move";
@@ -854,6 +879,36 @@
   document.getElementById("searchMine").addEventListener("input", function(ev){
     state.searchQuery = ev.target.value.trim();
     renderGrid();
+  });
+
+  document.getElementById("sortSelect").addEventListener("change", function(ev){
+    state.sortMode = ev.target.value;
+    renderGrid();
+  });
+
+  document.getElementById("randomPickBtn").addEventListener("click", function(){
+    if(state.entries.length === 0){
+      showToast("Add something to your log first!");
+      return;
+    }
+    var pool = state.entries.filter(function(e){ return e.status === "plan"; });
+    if(pool.length === 0){ pool = state.entries.filter(function(e){ return e.status === "watching"; }); }
+    if(pool.length === 0){ pool = state.entries.slice(); }
+    var pick = pool[Math.floor(Math.random() * pool.length)];
+
+    state.filterStatus = "all";
+    state.searchQuery = "";
+    document.getElementById("searchMine").value = "";
+    renderTabs();
+    renderGrid();
+
+    var el = document.querySelector('.card[data-id="' + pick.id + '"]');
+    if(el){
+      if(typeof el.scrollIntoView === "function"){ el.scrollIntoView({ behavior: "smooth", block: "center" }); }
+      el.classList.add("pick-highlight");
+      setTimeout(function(){ el.classList.remove("pick-highlight"); }, 1800);
+    }
+    showToast('How about "' + pick.title + '"?');
   });
 
   // ---------- modal: add anime ----------
@@ -1055,15 +1110,8 @@
     reader.readAsText(file);
   });
 
-  // ---------- ad slot ----------
-  function loadAd(){
-    var slot = document.getElementById("adSlot");
-    if(!slot) return;
-    var wide = window.innerWidth >= 480;
-    var key = wide ? "6a7a0c4964d3e8660fc91b19f382dc41" : "34bafde07c6959c9246755341eedb0e5";
-    var width = wide ? 728 : 320;
-    var height = wide ? 90 : 50;
-
+  // ---------- ad slots ----------
+  function injectAd(slot, key, width, height){
     slot.style.width = width + "px";
     slot.style.height = height + "px";
 
@@ -1076,8 +1124,29 @@
     slot.appendChild(invokeScript);
   }
 
+  function loadAds(){
+    // Bottom banner — always shown, responsive between two sizes.
+    var bottomSlot = document.getElementById("adSlot");
+    if(bottomSlot){
+      var wide = window.innerWidth >= 480;
+      if(wide){ injectAd(bottomSlot, "6a7a0c4964d3e8660fc91b19f382dc41", 728, 90); }
+      else{ injectAd(bottomSlot, "34bafde07c6959c9246755341eedb0e5", 320, 50); }
+    }
+
+    // Top banner — desktop/tablet only, so mobile isn't sandwiched between two ads.
+    var topZone = document.getElementById("adZoneTop");
+    var topSlot = document.getElementById("adSlotTop");
+    if(topZone && topSlot){
+      if(window.innerWidth >= 700){
+        injectAd(topSlot, "f11f05d413b772304e0656d5b23010e7", 468, 60);
+      } else {
+        topZone.classList.add("ad-hidden");
+      }
+    }
+  }
+
   // ---------- init ----------
   state.entries = loadEntries();
   render();
-  loadAd();
+  loadAds();
 })();

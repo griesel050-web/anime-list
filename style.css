@@ -163,6 +163,17 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   flex-wrap: wrap;
   margin-bottom: 22px;
 }
+.toolbar-controls{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sort-select{
+  font-size: 0.8rem;
+  padding: 7px 8px;
+  flex: 0 0 auto;
+}
 .tabs{
   display: flex;
   gap: 6px;
@@ -443,6 +454,14 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   0%, 100%{ box-shadow: 0 0 0 0 rgba(232,196,104,0); }
   50%{ box-shadow: 0 0 6px 1px rgba(232,196,104,0.35); }
 }
+@media (prefers-reduced-motion: no-preference){
+  .pick-highlight{ animation: pickGlow 1.8s ease; }
+}
+@keyframes pickGlow{
+  0%{ box-shadow: var(--shadow), 0 0 0 0 rgba(242,161,84,0); }
+  20%{ box-shadow: var(--shadow), 0 0 0 6px rgba(242,161,84,0.45); }
+  100%{ box-shadow: var(--shadow), 0 0 0 0 rgba(242,161,84,0); }
+}
 
 /* ---------- Description / genres / score ---------- */
 .section-label{
@@ -555,6 +574,15 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
 .body-spacer{ flex: 1; }
 .seasons{ display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
 .no-seasons{ font-size: 0.8rem; color: var(--text-faint); margin: 4px 0; }
+.notes-zone{ margin-top: 14px; }
+.notes-input{
+  width: 100%;
+  min-height: 56px;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  resize: vertical;
+  line-height: 1.4;
+}
 
 .season{
   border: 1px solid var(--border);
@@ -818,6 +846,11 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   align-items: center;
   gap: 6px;
 }
+.ad-zone-top{
+  margin-top: 4px;
+  margin-bottom: 18px;
+}
+.ad-zone.ad-hidden{ display: none; }
 .ad-label{
   font-size: 0.65rem;
   letter-spacing: 0.6px;

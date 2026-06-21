@@ -28,9 +28,23 @@
     <button class="btn btn-primary" id="openAddBtn">+ Add Anime</button>
   </header>
 
+  <div class="ad-zone ad-zone-top" id="adZoneTop">
+    <div class="ad-label">Advertisement</div>
+    <div class="ad-slot" id="adSlotTop"></div>
+  </div>
+
   <div class="toolbar">
     <div class="tabs" id="tabs" role="tablist" aria-label="Filter by status"></div>
-    <input class="search-mine" id="searchMine" type="search" placeholder="Filter your log…" aria-label="Filter your log by title">
+    <div class="toolbar-controls">
+      <button class="btn btn-ghost btn-small" id="randomPickBtn" title="Get a random pick from your list">🎲 Pick for me</button>
+      <select class="sort-select" id="sortSelect" aria-label="Sort order">
+        <option value="manual">Manual order</option>
+        <option value="title">Title A–Z</option>
+        <option value="rating">Rating (high first)</option>
+        <option value="updated">Recently updated</option>
+      </select>
+      <input class="search-mine" id="searchMine" type="search" placeholder="Filter your log…" aria-label="Filter your log by title">
+    </div>
   </div>
 
   <div class="grid" id="grid"></div>
