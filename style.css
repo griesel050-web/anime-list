@@ -810,6 +810,31 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
 }
 .search-status{ font-size: 0.8rem; color: var(--text-faint); padding: 10px 2px; }
 
+/* ---------- Ad slot ---------- */
+.ad-zone{
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.ad-label{
+  font-size: 0.65rem;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.ad-slot{
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+}
+
 /* ---------- Footer ---------- */
 .footer{
   margin-top: 50px;

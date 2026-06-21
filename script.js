@@ -1055,7 +1055,29 @@
     reader.readAsText(file);
   });
 
+  // ---------- ad slot ----------
+  function loadAd(){
+    var slot = document.getElementById("adSlot");
+    if(!slot) return;
+    var wide = window.innerWidth >= 480;
+    var key = wide ? "6a7a0c4964d3e8660fc91b19f382dc41" : "34bafde07c6959c9246755341eedb0e5";
+    var width = wide ? 728 : 320;
+    var height = wide ? 90 : 50;
+
+    slot.style.width = width + "px";
+    slot.style.height = height + "px";
+
+    var configScript = document.createElement("script");
+    configScript.text = "atOptions = " + JSON.stringify({ key: key, format: "iframe", height: height, width: width, params: {} }) + ";";
+    slot.appendChild(configScript);
+
+    var invokeScript = document.createElement("script");
+    invokeScript.src = "https://www.highperformanceformat.com/" + key + "/invoke.js";
+    slot.appendChild(invokeScript);
+  }
+
   // ---------- init ----------
   state.entries = loadEntries();
   render();
+  loadAd();
 })();

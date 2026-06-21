@@ -43,3 +43,11 @@ No build step, no dependencies to install.
 - If you open `index.html` directly from your computer (double-click, `file://…`) before hosting it, some browsers restrict local storage for `file://` pages — this isn't an issue once it's actually hosted over `https://` via GitHub Pages.
 - Search uses the free, public AniList GraphQL API, which is CORS-enabled for direct browser use. If it's ever briefly unreachable, use "Add manually" in the search panel.
 - An earlier version of this tracker used the Jikan (MyAnimeList) API, which turned out to be unreliable for direct browser requests — this version switched to AniList for that reason.
+
+## Ad slot
+
+There's a single responsive banner ad below the grid (728×90 on wider screens, 320×50 on narrow ones), labeled "Advertisement" so it's clear what it is. It uses the network/keys from your `ads.txt` — specifically just the two plain iframe banner sizes, not the native-banner widget, since that format tends to render as a "recommended content" block that would clash with this site's look.
+
+A couple of things worth knowing:
+- Ad-blockers (uBlock Origin, Brave's built-in blocker, etc.) commonly block this particular network, so a chunk of visitors will just see an empty bordered box where the ad would be — that's expected and harmless, not a bug.
+- This network (Adsterra/`highperformanceformat.com`) has a mixed reputation — display banners like the ones used here are generally fine, but the same network also sells more aggressive formats (popunders, etc.) that we deliberately didn't use. Worth keeping an eye on what actually renders once it's live.
