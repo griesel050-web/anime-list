@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Watch Log — Anime Tracker</title>
+<script>
+  // Applied before CSS loads so there's no flash of the wrong theme on reload.
+  (function(){
+    try{
+      if(localStorage.getItem("watchlog.theme") === "light"){
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    }catch(e){}
+  })();
+</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23121018'/%3E%3Crect x='6' y='9' width='20' height='14' rx='2' fill='none' stroke='%23f2a154' stroke-width='2'/%3E%3Cpolygon points='14,13 14,19 20,16' fill='%23f2a154'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,7 +35,11 @@
       <div class="tagline">Your personal anime viewing record.</div>
       <div class="stats-line" id="statsLine">0 titles · 0 episodes watched</div>
     </div>
-    <button class="btn btn-primary" id="openAddBtn">+ Add Anime</button>
+    <div class="header-actions">
+      <button class="btn btn-ghost btn-small" id="importAniListBtn" title="Import your list from AniList">⇩ Import list</button>
+      <button class="btn btn-ghost btn-icon" id="themeToggle" title="Toggle light/dark theme" aria-label="Toggle light/dark theme">🌙</button>
+      <button class="btn btn-primary" id="openAddBtn">+ Add Anime</button>
+    </div>
   </header>
 
   <div class="ad-zone ad-zone-top" id="adZoneTop">
@@ -93,6 +107,25 @@
         </div>
         <button class="btn btn-primary btn-small" id="manualAddBtn" style="align-self:flex-start;">Add to log</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Import from AniList Modal -->
+<div class="modal-backdrop" id="importModalBackdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
+    <div class="modal-head">
+      <h2 id="importModalTitle">Import from AniList</h2>
+      <button class="modal-close" id="closeImportModalBtn" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="search-hint">Enter your AniList username to pull in your existing anime list. Titles already in your log are skipped automatically, so it's safe to run this more than once.</p>
+      <div class="row">
+        <input class="search-box" id="importUsernameInput" type="text" placeholder="AniList username" autocomplete="off" style="margin-bottom:0;">
+        <button class="btn btn-primary btn-small" id="importFetchBtn" style="flex:0 0 auto;">Fetch</button>
+      </div>
+      <div class="search-status" id="importStatus"></div>
+      <div id="importPreview"></div>
     </div>
   </div>
 </div>

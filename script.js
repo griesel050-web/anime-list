@@ -21,7 +21,8 @@
     lastToggledEps: null,  // {seasonId, eps:[...]} — used for the brief "pop" feedback
     lastAddedSeasonId: null,
     draggedId: null,
-    sortMode: "manual"
+    sortMode: "manual",
+    airingInfo: {} // apiId -> { episode, airingAt } — refreshed once per session, not persisted
   };
 
   // ---------- helpers ----------
@@ -323,10 +324,40 @@
     );
   }
 
+  function relevantApiId(entry){
+    if(entry.seasons.length){
+      var last = entry.seasons[entry.seasons.length - 1];
+      if(last.apiId) return last.apiId;
+    }
+    return entry.apiId;
+  }
+
+  function formatCountdown(airingAtSeconds){
+    var diffMs = airingAtSeconds * 1000 - Date.now();
+    if(diffMs <= 0) return null;
+    var mins = Math.floor(diffMs / 60000);
+    if(mins < 60) return mins + "m";
+    var hours = Math.floor(mins / 60);
+    var remM = mins % 60;
+    if(hours < 24) return hours + "h" + (remM ? " " + remM + "m" : "");
+    var days = Math.floor(hours / 24);
+    var remH = hours % 24;
+    return days + "d" + (remH ? " " + remH + "h" : "");
+  }
+
+  function airingChipHtml(entry){
+    var id = relevantApiId(entry);
+    var info = id != null ? state.airingInfo[id] : null;
+    if(!info) return "";
+    var countdown = formatCountdown(info.airingAt);
+    if(!countdown) return "";
+    return '<span class="chip chip-airing">Ep ' + info.episode + " in " + countdown + "</span>";
+  }
+
   var DESC_TRUNCATE = 150;
 
   function descriptionZoneHtml(entry){
-    var chips = "";
+    var chips = airingChipHtml(entry);
     (entry.genres || []).slice(0, 4).forEach(function(g){
       chips += '<span class="chip">' + escapeHtml(g) + "</span>";
     });
@@ -939,7 +970,10 @@
     if(ev.target === modalBackdrop) closeModal();
   });
   document.addEventListener("keydown", function(ev){
-    if(ev.key === "Escape" && modalBackdrop.classList.contains("open")) closeModal();
+    if(ev.key === "Escape"){
+      if(modalBackdrop.classList.contains("open")) closeModal();
+      if(importModalBackdrop && importModalBackdrop.classList.contains("open")) closeImportModal();
+    }
   });
 
   document.getElementById("manualToggle").addEventListener("click", function(ev){
@@ -1068,6 +1102,149 @@
     state.searchTimer = setTimeout(function(){ searchAniList(q); }, 450);
   });
 
+  // ---------- import from AniList ----------
+  var importModalBackdrop = document.getElementById("importModalBackdrop");
+  var importUsernameInput = document.getElementById("importUsernameInput");
+  var importStatusEl = document.getElementById("importStatus");
+  var importPreviewEl = document.getElementById("importPreview");
+  var pendingImportItems = [];
+
+  var IMPORT_STATUS_MAP = {
+    CURRENT: "watching", REPEATING: "watching", PLANNING: "plan",
+    COMPLETED: "completed", DROPPED: "dropped", PAUSED: "watching"
+  };
+
+  function normalizeImportScore(score){
+    if(!score) return null;
+    var n = score <= 10 ? Math.round(score) : Math.round(score / 10);
+    return Math.max(0, Math.min(10, n)) || null;
+  }
+
+  function openImportModal(){
+    importModalBackdrop.classList.add("open");
+    importUsernameInput.value = "";
+    importStatusEl.textContent = "";
+    importPreviewEl.innerHTML = "";
+    pendingImportItems = [];
+    setTimeout(function(){ importUsernameInput.focus(); }, 30);
+  }
+  function closeImportModal(){
+    importModalBackdrop.classList.remove("open");
+  }
+
+  document.getElementById("importAniListBtn").addEventListener("click", openImportModal);
+  document.getElementById("closeImportModalBtn").addEventListener("click", closeImportModal);
+  importModalBackdrop.addEventListener("click", function(ev){
+    if(ev.target === importModalBackdrop) closeImportModal();
+  });
+  importUsernameInput.addEventListener("keydown", function(ev){
+    if(ev.key === "Enter"){ ev.preventDefault(); document.getElementById("importFetchBtn").click(); }
+  });
+
+  function renderImportPreview(flatEntries){
+    var existingIds = {};
+    state.entries.forEach(function(e){ if(e.apiId != null){ existingIds[e.apiId] = true; } });
+
+    var fresh = flatEntries.filter(function(e){ return !existingIds[e.media.id]; });
+    var skipped = flatEntries.length - fresh.length;
+    pendingImportItems = fresh;
+
+    importStatusEl.textContent = "";
+    var summary = '<p class="import-summary">Found ' + flatEntries.length + " title" + (flatEntries.length === 1 ? "" : "s") + ". " +
+      fresh.length + " new, " + skipped + " already in your log.</p>";
+
+    if(fresh.length === 0){
+      importPreviewEl.innerHTML = summary + '<p class="search-status">Nothing new to import.</p>';
+      return;
+    }
+
+    var rows = fresh.slice(0, 30).map(function(e){
+      var label = statusMeta[IMPORT_STATUS_MAP[e.status] || "plan"].label;
+      return '<div class="import-list-row"><span>' + escapeHtml(pickTitle(e.media.title)) + "</span><span>" + label + "</span></div>";
+    }).join("");
+    var more = fresh.length > 30 ? '<div class="import-list-row skip">…and ' + (fresh.length - 30) + " more</div>" : "";
+
+    importPreviewEl.innerHTML = summary +
+      '<div class="import-list">' + rows + more + "</div>" +
+      '<button type="button" class="btn btn-primary btn-small" id="confirmImportBtn">Import ' + fresh.length + " title" + (fresh.length === 1 ? "" : "s") + "</button>";
+
+    document.getElementById("confirmImportBtn").addEventListener("click", function(){
+      runImport(pendingImportItems);
+    });
+  }
+
+  function runImport(items){
+    items.forEach(function(e){
+      var m = e.media;
+      var status = IMPORT_STATUS_MAP[e.status] || "plan";
+      var season = makeSeason(defaultSeasonLabel(m.format), m.episodes || null, m.duration || null);
+      season.apiId = m.id;
+      var progress = Number(e.progress) || 0;
+      var watchedArr = [];
+      for(var i = 1; i <= progress; i++){ watchedArr.push(i); }
+      season.watched = watchedArr;
+      recomputeSeasonLength(season);
+
+      state.entries.push({
+        id: uid(),
+        apiId: m.id,
+        title: pickTitle(m.title),
+        image: m.coverImage ? (m.coverImage.large || m.coverImage.medium || "") : "",
+        banner: m.bannerImage || "",
+        description: stripHtml(m.description || ""),
+        genres: m.genres || [],
+        communityScore: (typeof m.averageScore === "number") ? m.averageScore : null,
+        status: status,
+        rating: normalizeImportScore(e.score),
+        collapsed: true,
+        notes: "",
+        seasons: [season],
+        discovering: false,
+        updatedAt: Date.now()
+      });
+    });
+    saveEntries();
+    render();
+    closeImportModal();
+    showToast("Imported " + items.length + " title" + (items.length === 1 ? "" : "s") + ".");
+  }
+
+  function fetchAniListImport(username){
+    importStatusEl.textContent = "Fetching " + username + "'s list…";
+    importPreviewEl.innerHTML = "";
+
+    var gql =
+      "query ($name: String) { MediaListCollection(userName: $name, type: ANIME) { lists { entries { status progress score " +
+      "media { id title { romaji english } coverImage { large medium } bannerImage episodes duration format genres averageScore description(asHtml: true) } } } } }";
+
+    fetch("https://graphql.anilist.co", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ query: gql, variables: { name: username } })
+    }).then(function(res){
+      if(!res.ok){ throw new Error("bad-response"); }
+      return res.json();
+    }).then(function(json){
+      if(json.errors || !json.data || !json.data.MediaListCollection){ throw new Error("not-found"); }
+      var lists = json.data.MediaListCollection.lists || [];
+      var flat = [];
+      lists.forEach(function(l){ (l.entries || []).forEach(function(e){ flat.push(e); }); });
+      if(flat.length === 0){
+        importStatusEl.textContent = "No anime found on that list (or the profile/list is private).";
+        return;
+      }
+      renderImportPreview(flat);
+    }).catch(function(){
+      importStatusEl.textContent = "Couldn't find that user, or their list is private.";
+    });
+  }
+
+  document.getElementById("importFetchBtn").addEventListener("click", function(){
+    var name = importUsernameInput.value.trim();
+    if(!name){ showToast("Enter a username first."); return; }
+    fetchAniListImport(name);
+  });
+
   // ---------- export / import ----------
   document.getElementById("exportBtn").addEventListener("click", function(){
     var blob = new Blob([JSON.stringify(state.entries, null, 2)], { type: "application/json" });
@@ -1110,6 +1287,57 @@
     reader.readAsText(file);
   });
 
+  // ---------- theme toggle ----------
+  var THEME_KEY = "watchlog.theme";
+  function applyThemeButtonLabel(){
+    var isLight = document.documentElement.getAttribute("data-theme") === "light";
+    document.getElementById("themeToggle").textContent = isLight ? "☀️" : "🌙";
+  }
+  document.getElementById("themeToggle").addEventListener("click", function(){
+    var isLight = document.documentElement.getAttribute("data-theme") === "light";
+    if(isLight){
+      document.documentElement.removeAttribute("data-theme");
+      try{ localStorage.setItem(THEME_KEY, "dark"); }catch(e){}
+    } else {
+      document.documentElement.setAttribute("data-theme", "light");
+      try{ localStorage.setItem(THEME_KEY, "light"); }catch(e){}
+    }
+    applyThemeButtonLabel();
+  });
+  applyThemeButtonLabel();
+
+  // ---------- air-date countdown ----------
+  function fetchAiringInfo(){
+    var ids = [];
+    state.entries.forEach(function(e){
+      if(e.status === "watching"){
+        var id = relevantApiId(e);
+        if(id != null && ids.indexOf(id) === -1){ ids.push(id); }
+      }
+    });
+    if(ids.length === 0) return;
+    ids = ids.slice(0, 50); // AniList Page perPage cap — plenty for any realistic "currently watching" count
+
+    var gql = "query ($ids: [Int]) { Page(perPage: 50) { media(id_in: $ids, type: ANIME) { id status nextAiringEpisode { episode airingAt } } } }";
+    fetch("https://graphql.anilist.co", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ query: gql, variables: { ids: ids } })
+    }).then(function(res){
+      if(!res.ok){ throw new Error("bad-response"); }
+      return res.json();
+    }).then(function(json){
+      if(json.errors){ throw new Error("api-error"); }
+      var list = (json.data && json.data.Page && json.data.Page.media) || [];
+      list.forEach(function(m){
+        if(m.nextAiringEpisode){
+          state.airingInfo[m.id] = { episode: m.nextAiringEpisode.episode, airingAt: m.nextAiringEpisode.airingAt };
+        }
+      });
+      renderGrid();
+    }).catch(function(){ /* non-critical — countdown just won't show this session */ });
+  }
+
   // ---------- ad slots ----------
   function injectAd(slot, key, width, height){
     slot.style.width = width + "px";
@@ -1149,4 +1377,5 @@
   state.entries = loadEntries();
   render();
   loadAds();
+  fetchAiringInfo();
 })();

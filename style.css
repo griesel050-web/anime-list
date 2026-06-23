@@ -2,6 +2,7 @@
 :root{
   --bg: #121018;
   --bg-deep: #0c0b11;
+  --bg-top: #161320;
   --surface: #1c1924;
   --surface-2: #262230;
   --surface-3: #312c3a;
@@ -32,15 +33,30 @@
   --font-mono: 'JetBrains Mono', monospace;
 }
 
+[data-theme="light"]{
+  --bg-deep: #ece6db;
+  --bg-top: #fbf8f2;
+  --surface: #ffffff;
+  --surface-2: #f1ece3;
+  --surface-3: #e7e0d3;
+  --border: #ddd5c5;
+  --text: #211d29;
+  --text-dim: #5b5468;
+  --text-faint: #948c9e;
+  --shadow: 0 10px 26px rgba(80,70,50,0.12);
+  --shadow-hover: 0 16px 32px rgba(80,70,50,0.16);
+}
+
 *{ box-sizing: border-box; }
 html, body{ margin:0; padding:0; }
 body{
-  background: linear-gradient(180deg, #161320 0%, var(--bg-deep) 100%);
+  background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-deep) 100%);
   color: var(--text);
   font-family: var(--font-body);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   position: relative;
+  transition: background-color .25s ease;
 }
 body::before{
   content: "";
@@ -95,6 +111,22 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   gap: 20px;
   flex-wrap: wrap;
   margin-bottom: 22px;
+}
+.header-actions{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.btn-icon{
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+  flex-shrink: 0;
 }
 .brand-mark{
   font-family: var(--font-display);
@@ -500,6 +532,12 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   background: rgba(232,196,104,0.12);
   font-weight: 600;
 }
+.chip-airing{
+  color: var(--watching);
+  border-color: var(--watching);
+  background: var(--watching-soft);
+  font-weight: 600;
+}
 @media (prefers-reduced-motion: no-preference){
   .chip-score{ animation: scoreGlow 3s ease-in-out infinite; }
 }
@@ -710,6 +748,8 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   margin-bottom: 3px;
 }
 .mini-form input{ width: 100%; font-size: 0.86rem; }
+.row{ display: flex; gap: 8px; margin-bottom: 10px; }
+.row > *{ flex: 1; min-width: 0; }
 .mini-form .row{ display: flex; gap: 8px; }
 .mini-form .row > *{ flex: 1; min-width: 0; }
 
@@ -837,6 +877,20 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   cursor: default;
 }
 .search-status{ font-size: 0.8rem; color: var(--text-faint); padding: 10px 2px; }
+
+.import-summary{ font-size: 0.85rem; color: var(--text-dim); margin: 6px 0 10px; }
+.import-list{
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+  font-size: 0.78rem;
+  color: var(--text-faint);
+}
+.import-list-row{ display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--border); }
+.import-list-row .skip{ color: var(--text-faint); font-style: italic; }
 
 /* ---------- Ad slot ---------- */
 .ad-zone{
