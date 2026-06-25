@@ -18,6 +18,17 @@ A personal anime watch tracker, split into plain HTML/CSS/JS so it's easy to rea
 - **Import from AniList** — pull in your whole existing AniList list in one go (the ⇩ Import list button in the header). Maps your AniList status/progress/score onto this app's fields, skips anything already in your log, and is safe to re-run any time you want to sync new additions. (MAL import isn't supported — the only public way to read an arbitrary MAL list without OAuth is through Jikan, which turned out to be unreliable for this project; if your list lives on MAL, AniList has an import tool that can migrate it over first.)
 - **Air-date countdown** — anime you've marked "Watching" that's still airing gets a small "Ep N in 2d 3h" badge, refreshed once each time you load the page.
 - **Light/dark theme** — the 🌙/☀️ button in the header toggles a light theme; your choice is remembered and applied instantly on reload (no flash of the wrong theme).
+- **Installable / works offline** — the site is a PWA now (manifest + service worker + icons). Browsers will offer to "install" it like an app, and the app shell (everything except live search/import, which need a connection) loads even offline once you've visited it before.
+- **Stats dashboard** (📊 Stats) — status breakdown, top genres, your rating distribution, and headline numbers (total titles, episodes, watch time, average rating).
+- **Weekly airing schedule** (📅 Schedule) — a 7-day view of when your currently-Watching shows air next, built from the same airing data as the countdown badges.
+- **Recommendations** (🔮 Discover) — suggests new titles based on AniList's recommendation graph for whatever you've rated 8/10 or higher, with one-click add.
+- **Share image** (📤 Share) — generates and downloads a PNG snapshot of your stats (titles, episodes, watch time, top genres, top-rated shows) — no server involved, drawn entirely in your browser.
+- **Tags** — free-form labels per title (e.g. "comfort rewatch," "watch with friends"), with a filter dropdown to view by tag.
+- **Genre filter** — filter your list by any genre AniList has tagged a show with.
+- **Compact view** — a denser single-column list layout (☷ Compact / ☰ Grid toggle) for browsing big lists faster.
+- **Accent color picker** — pick any color for buttons/links/highlights, independent of light/dark mode.
+- **Keyboard shortcuts** — `/` focuses the search box, `N` opens Add Anime, `R` triggers Random Pick (all skipped while you're typing in a field).
+- **Undo instead of confirm popups** — removing a title or season is instant with a 5-second "Undo" toast, instead of a blocking "are you sure?" dialog.
 - **Sort modes** — Manual order (drag-and-drop), Title A–Z, Rating (high first), or Recently updated. Switching away from Manual and back preserves your drag order underneath.
 - **Random pick** — the 🎲 button suggests something from your Plan to Watch list (or Watching, or anything, if those are empty), scrolls to it, and gives it a little glow.
 - **Personal notes** — a free-text notes box per title (inside the expanded view) for things like "watching with my sister" or "paused at the beach episode."
@@ -35,7 +46,7 @@ A personal anime watch tracker, split into plain HTML/CSS/JS so it's easy to rea
 ## Host it on GitHub Pages
 
 1. Create a new GitHub repository (public or private).
-2. Add `index.html`, `style.css`, and `script.js` to the **root** of the repo.
+2. Add all the files in this folder to the **root** of the repo — `index.html`, `style.css`, `script.js`, `README.md`, `manifest.json`, `service-worker.js`, and the `icons/` folder. The relative paths matter (especially for the icons and service worker), so keep the folder structure as-is.
 3. Commit and push.
 4. In the repo, go to **Settings → Pages**.
 5. Under "Build and deployment", set **Source** to "Deploy from a branch", choose your default branch (e.g. `main`) and `/ (root)` folder, then **Save**.

@@ -22,6 +22,8 @@
     lastAddedSeasonId: null,
     draggedId: null,
     sortMode: "manual",
+    genreFilter: "",
+    tagFilter: "",
     airingInfo: {} // apiId -> { episode, airingAt } — refreshed once per session, not persisted
   };
 
@@ -131,6 +133,7 @@
       rating: (typeof raw.rating === "number") ? raw.rating : null,
       collapsed: (typeof raw.collapsed === "boolean") ? raw.collapsed : true,
       notes: raw.notes || "",
+      tags: Array.isArray(raw.tags) ? raw.tags.filter(Boolean) : [],
       seasons: [],
       discovering: false,
       updatedAt: raw.updatedAt || Date.now()
@@ -195,11 +198,26 @@
   // ---------- toast ----------
   var toastEl = document.getElementById("toast");
   var toastTimer = null;
-  function showToast(msg){
-    toastEl.textContent = msg;
+  function showToast(msg, opts){
+    opts = opts || {};
+    toastEl.querySelector(".toast-msg").textContent = msg;
+    var existingAction = toastEl.querySelector(".toast-action");
+    if(existingAction){ existingAction.remove(); }
+    if(opts.actionLabel){
+      var actionBtn = document.createElement("button");
+      actionBtn.type = "button";
+      actionBtn.className = "toast-action";
+      actionBtn.textContent = opts.actionLabel;
+      actionBtn.addEventListener("click", function(){
+        if(opts.onAction){ opts.onAction(); }
+        toastEl.classList.remove("show");
+        clearTimeout(toastTimer);
+      });
+      toastEl.appendChild(actionBtn);
+    }
     toastEl.classList.add("show");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 2600);
+    toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, opts.duration || 2600);
   }
 
   // ---------- stats & tabs ----------
@@ -255,6 +273,12 @@
     if(state.searchQuery){
       var q = state.searchQuery.toLowerCase();
       list = list.filter(function(e){ return e.title.toLowerCase().indexOf(q) !== -1; });
+    }
+    if(state.genreFilter){
+      list = list.filter(function(e){ return (e.genres || []).indexOf(state.genreFilter) !== -1; });
+    }
+    if(state.tagFilter){
+      list = list.filter(function(e){ return (e.tags || []).indexOf(state.tagFilter) !== -1; });
     }
     if(state.sortMode === "title"){
       list.sort(function(a, b){ return a.title.toLowerCase().localeCompare(b.title.toLowerCase()); });
@@ -469,6 +493,16 @@
                 '<div class="section-label">Your notes</div>' +
                 '<textarea class="notes-input" data-action="notes" placeholder="Thoughts, rewatch plans, where you left off…">' + escapeHtml(entry.notes) + "</textarea>" +
               "</div>" +
+              '<div class="tags-zone">' +
+                '<div class="section-label">Tags</div>' +
+                '<div class="tag-chip-row">' +
+                  (entry.tags || []).map(function(t){
+                    return '<span class="tag-chip">' + escapeHtml(t) +
+                      '<button type="button" data-action="tag-remove" data-tag="' + escapeHtml(t) + '" aria-label="Remove tag">&times;</button></span>';
+                  }).join("") +
+                "</div>" +
+                '<input type="text" class="tag-input" data-action="tag-input" placeholder="Add a tag, press Enter">' +
+              "</div>" +
               '<div class="card-footer">' +
                 malLink +
                 '<button type="button" class="remove-btn" data-action="remove-anime">Remove</button>' +
@@ -518,6 +552,7 @@
     renderStats();
     renderTabs();
     renderGrid();
+    refreshFilterOptions();
   }
 
   // ---------- entry mutations ----------
@@ -544,6 +579,7 @@
       rating: null,
       collapsed: true,
       notes: "",
+      tags: [],
       seasons: [season],
       discovering: !!data.apiId,
       updatedAt: Date.now()
@@ -558,12 +594,21 @@
   function removeEntry(id){
     var entry = findEntry(id);
     if(!entry) return;
-    if(!confirm('Remove "' + entry.title + '" from your log?')) return;
-    state.entries = state.entries.filter(function(e){ return e.id !== id; });
+    var idx = state.entries.indexOf(entry);
+    state.entries.splice(idx, 1);
     delete state.knownCardIds[id];
     saveEntries();
     render();
-    showToast("Removed from your log.");
+    showToast('Removed "' + entry.title + '".', {
+      actionLabel: "Undo",
+      duration: 5000,
+      onAction: function(){
+        state.entries.splice(idx, 0, entry);
+        state.knownCardIds[id] = true; // skip the entrance animation on restore
+        saveEntries();
+        render();
+      }
+    });
   }
 
   // Moves draggedId next to targetId in the master array. Works regardless of any active
@@ -776,12 +821,24 @@
       saveEntries(); render();
 
     } else if(action === "season-remove" && season){
-      if(!confirm('Remove "' + season.label + '" and its progress?')) return;
+      var removedIdx = entry.seasons.indexOf(season);
       entry.seasons = entry.seasons.filter(function(s){ return s.id !== seasonId; });
       autoStatus(entry);
       entry.updatedAt = Date.now();
       state.lastTouchedEntryId = entry.id;
       saveEntries(); render();
+      showToast('Removed "' + season.label + '".', {
+        actionLabel: "Undo",
+        duration: 5000,
+        onAction: function(){
+          var e2 = findEntry(entry.id);
+          if(!e2) return;
+          e2.seasons.splice(removedIdx, 0, season);
+          autoStatus(e2);
+          e2.updatedAt = Date.now();
+          saveEntries(); render();
+        }
+      });
 
     } else if(action === "toggle-add-season"){
       ev.preventDefault();
@@ -801,7 +858,30 @@
       state.lastAddedSeasonId = newSeason.id;
       saveEntries(); render();
       showToast('Added "' + label + '".');
+
+    } else if(action === "tag-remove"){
+      var tagToRemove = actionEl.getAttribute("data-tag");
+      entry.tags = (entry.tags || []).filter(function(t){ return t !== tagToRemove; });
+      entry.updatedAt = Date.now();
+      saveEntries(); render(); refreshFilterOptions();
     }
+  });
+
+  document.getElementById("grid").addEventListener("keydown", function(ev){
+    if(!ev.target.classList || !ev.target.classList.contains("tag-input")) return;
+    if(ev.key !== "Enter") return;
+    ev.preventDefault();
+    var card = ev.target.closest(".card");
+    if(!card) return;
+    var entry = findEntry(card.getAttribute("data-id"));
+    if(!entry) return;
+    var val = ev.target.value.trim();
+    if(!val) return;
+    entry.tags = entry.tags || [];
+    if(entry.tags.indexOf(val) === -1){ entry.tags.push(val); }
+    entry.updatedAt = Date.now();
+    state.lastTouchedEntryId = entry.id;
+    saveEntries(); render(); refreshFilterOptions();
   });
 
   // ---------- grid: change delegation (text/number/select inputs) ----------
@@ -917,6 +997,38 @@
     renderGrid();
   });
 
+  document.getElementById("genreFilterSelect").addEventListener("change", function(ev){
+    state.genreFilter = ev.target.value;
+    renderGrid();
+  });
+
+  document.getElementById("tagFilterSelect").addEventListener("change", function(ev){
+    state.tagFilter = ev.target.value;
+    renderGrid();
+  });
+
+  function refreshFilterOptions(){
+    var genreSet = {}, tagSet = {};
+    state.entries.forEach(function(e){
+      (e.genres || []).forEach(function(g){ genreSet[g] = true; });
+      (e.tags || []).forEach(function(t){ tagSet[t] = true; });
+    });
+    var genres = Object.keys(genreSet).sort(function(a, b){ return a.localeCompare(b); });
+    var tags = Object.keys(tagSet).sort(function(a, b){ return a.localeCompare(b); });
+
+    var genreSel = document.getElementById("genreFilterSelect");
+    var keepGenre = genres.indexOf(state.genreFilter) !== -1 ? state.genreFilter : "";
+    genreSel.innerHTML = '<option value="">All genres</option>' +
+      genres.map(function(g){ return '<option value="' + escapeHtml(g) + '"' + (g === keepGenre ? " selected" : "") + ">" + escapeHtml(g) + "</option>"; }).join("");
+    state.genreFilter = keepGenre;
+
+    var tagSel = document.getElementById("tagFilterSelect");
+    var keepTag = tags.indexOf(state.tagFilter) !== -1 ? state.tagFilter : "";
+    tagSel.innerHTML = '<option value="">All tags</option>' +
+      tags.map(function(t){ return '<option value="' + escapeHtml(t) + '"' + (t === keepTag ? " selected" : "") + ">" + escapeHtml(t) + "</option>"; }).join("");
+    state.tagFilter = keepTag;
+  }
+
   document.getElementById("randomPickBtn").addEventListener("click", function(){
     if(state.entries.length === 0){
       showToast("Add something to your log first!");
@@ -973,6 +1085,27 @@
     if(ev.key === "Escape"){
       if(modalBackdrop.classList.contains("open")) closeModal();
       if(importModalBackdrop && importModalBackdrop.classList.contains("open")) closeImportModal();
+      if(statsModalBackdrop && statsModalBackdrop.classList.contains("open")) statsModalBackdrop.classList.remove("open");
+      if(scheduleModalBackdrop && scheduleModalBackdrop.classList.contains("open")) scheduleModalBackdrop.classList.remove("open");
+      if(discoverModalBackdrop && discoverModalBackdrop.classList.contains("open")) discoverModalBackdrop.classList.remove("open");
+      return;
+    }
+
+    var tag = document.activeElement ? document.activeElement.tagName : "";
+    var typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" ||
+      (document.activeElement && document.activeElement.isContentEditable);
+    if(typing) return;
+    if(modalBackdrop.classList.contains("open") || (importModalBackdrop && importModalBackdrop.classList.contains("open"))) return;
+
+    if(ev.key === "/"){
+      ev.preventDefault();
+      document.getElementById("searchMine").focus();
+    } else if(ev.key === "n" || ev.key === "N"){
+      ev.preventDefault();
+      openModal();
+    } else if(ev.key === "r" || ev.key === "R"){
+      ev.preventDefault();
+      document.getElementById("randomPickBtn").click();
     }
   });
 
@@ -1102,7 +1235,86 @@
     state.searchTimer = setTimeout(function(){ searchAniList(q); }, 450);
   });
 
-  // ---------- import from AniList ----------
+  // ---------- stats dashboard ----------
+  function statBarRow(label, count, max){
+    var pct = max > 0 ? Math.round((count / max) * 100) : 0;
+    return (
+      '<div class="stat-bar-row">' +
+        '<span class="stat-bar-label">' + escapeHtml(label) + "</span>" +
+        '<div class="stat-bar-track"><div class="stat-bar-fill" style="width:' + pct + '%"></div></div>' +
+        '<span class="stat-bar-count">' + count + "</span>" +
+      "</div>"
+    );
+  }
+
+  function renderStatsModalBody(){
+    var body = document.getElementById("statsModalBody");
+    if(state.entries.length === 0){
+      body.innerHTML = '<p class="search-status">Add a few titles first, then come back here.</p>';
+      return;
+    }
+
+    var statusCounts = { watching: 0, completed: 0, plan: 0, dropped: 0 };
+    var genreCounts = {};
+    var ratingCounts = {};
+    var ratedCount = 0, ratingSum = 0;
+    var totalEpisodes = 0, totalMinutes = 0;
+
+    state.entries.forEach(function(e){
+      statusCounts[e.status] = (statusCounts[e.status] || 0) + 1;
+      (e.genres || []).forEach(function(g){ genreCounts[g] = (genreCounts[g] || 0) + 1; });
+      if(e.rating != null){ ratedCount++; ratingSum += e.rating; ratingCounts[e.rating] = (ratingCounts[e.rating] || 0) + 1; }
+      e.seasons.forEach(function(season){
+        totalEpisodes += season.watched.length;
+        totalMinutes += season.watched.length * (season.duration || FALLBACK_EP_MINUTES);
+      });
+    });
+
+    var statusMax = Math.max.apply(null, statusOrder.map(function(k){ return statusCounts[k] || 0; }).concat([1]));
+    var statusHtml = statusOrder.map(function(k){ return statBarRow(statusMeta[k].label, statusCounts[k] || 0, statusMax); }).join("");
+
+    var genreEntries = Object.keys(genreCounts).map(function(g){ return { name: g, count: genreCounts[g] }; })
+      .sort(function(a, b){ return b.count - a.count; }).slice(0, 8);
+    var genreMax = genreEntries.length ? genreEntries[0].count : 1;
+    var genreHtml = genreEntries.length
+      ? genreEntries.map(function(g){ return statBarRow(g.name, g.count, genreMax); }).join("")
+      : '<p class="search-status">No genre data yet — genres fill in automatically when you add titles via search.</p>';
+
+    var ratingMax = Math.max.apply(null, [1].concat(Object.keys(ratingCounts).map(function(k){ return ratingCounts[k]; })));
+    var ratingHtml = "";
+    for(var r = 10; r >= 1; r--){
+      ratingHtml += statBarRow(r + "/10", ratingCounts[r] || 0, ratingMax);
+    }
+
+    var avgRating = ratedCount > 0 ? (ratingSum / ratedCount).toFixed(1) : "—";
+    var topGenre = genreEntries.length ? genreEntries[0].name : "—";
+
+    body.innerHTML =
+      '<div class="stats-highlights">' +
+        '<div class="stat-highlight"><span class="stat-highlight-num">' + state.entries.length + '</span><span>titles</span></div>' +
+        '<div class="stat-highlight"><span class="stat-highlight-num">' + totalEpisodes + '</span><span>episodes</span></div>' +
+        '<div class="stat-highlight"><span class="stat-highlight-num">' + formatWatchTime(totalMinutes) + '</span><span>watch time</span></div>' +
+        '<div class="stat-highlight"><span class="stat-highlight-num">' + avgRating + '</span><span>avg rating</span></div>' +
+        '<div class="stat-highlight"><span class="stat-highlight-num">' + escapeHtml(topGenre) + '</span><span>top genre</span></div>' +
+      "</div>" +
+      '<div class="section-label">By status</div>' + statusHtml +
+      '<div class="section-label">Top genres</div>' + genreHtml +
+      '<div class="section-label">Your ratings</div>' + ratingHtml;
+  }
+
+  var statsModalBackdrop = document.getElementById("statsModalBackdrop");
+  document.getElementById("statsBtn").addEventListener("click", function(){
+    renderStatsModalBody();
+    statsModalBackdrop.classList.add("open");
+  });
+  document.getElementById("closeStatsModalBtn").addEventListener("click", function(){
+    statsModalBackdrop.classList.remove("open");
+  });
+  statsModalBackdrop.addEventListener("click", function(ev){
+    if(ev.target === statsModalBackdrop){ statsModalBackdrop.classList.remove("open"); }
+  });
+
+
   var importModalBackdrop = document.getElementById("importModalBackdrop");
   var importUsernameInput = document.getElementById("importUsernameInput");
   var importStatusEl = document.getElementById("importStatus");
@@ -1198,6 +1410,7 @@
         rating: normalizeImportScore(e.score),
         collapsed: true,
         notes: "",
+        tags: [],
         seasons: [season],
         discovering: false,
         updatedAt: Date.now()
@@ -1245,7 +1458,245 @@
     fetchAniListImport(name);
   });
 
-  // ---------- export / import ----------
+  // ---------- discover / recommendations ----------
+  var discoverModalBackdrop = document.getElementById("discoverModalBackdrop");
+  var discoverModalBody = document.getElementById("discoverModalBody");
+  var lastRecommendations = [];
+
+  function fetchRecommendationsFor(apiId){
+    var gql = "query ($id: Int) { Media(id: $id, type: ANIME) { recommendations(perPage: 6, sort: RATING_DESC) { nodes { mediaRecommendation { id title { romaji english } coverImage { large medium } episodes format seasonYear } } } } }";
+    return fetch("https://graphql.anilist.co", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ query: gql, variables: { id: apiId } })
+    }).then(function(res){
+      if(!res.ok){ throw new Error("bad-response"); }
+      return res.json();
+    }).then(function(json){
+      if(json.errors || !json.data || !json.data.Media) return [];
+      var nodes = json.data.Media.recommendations ? json.data.Media.recommendations.nodes : [];
+      return nodes.map(function(n){ return n.mediaRecommendation; }).filter(Boolean);
+    }).catch(function(){ return []; });
+  }
+
+  function runDiscover(){
+    var seeds = state.entries
+      .filter(function(e){ return e.rating != null && e.rating >= 8 && e.apiId; })
+      .sort(function(a, b){ return (b.rating || 0) - (a.rating || 0); })
+      .slice(0, 3);
+
+    if(seeds.length === 0){
+      discoverModalBody.innerHTML = '<p class="search-status">Rate a few titles 8/10 or higher first — recommendations are based on what you already love.</p>';
+      return;
+    }
+
+    discoverModalBody.innerHTML = '<p class="search-status">Looking for shows similar to ' + seeds.map(function(s){ return escapeHtml(s.title); }).join(", ") + "…</p>";
+
+    Promise.all(seeds.map(function(s){ return fetchRecommendationsFor(s.apiId); })).then(function(results){
+      var existingIds = {};
+      state.entries.forEach(function(e){ if(e.apiId != null){ existingIds[e.apiId] = true; } });
+
+      var seen = {};
+      var combined = [];
+      results.forEach(function(list){
+        list.forEach(function(m){
+          if(existingIds[m.id] || seen[m.id]) return;
+          seen[m.id] = true;
+          combined.push(m);
+        });
+      });
+      combined = combined.slice(0, 8);
+
+      if(combined.length === 0){
+        discoverModalBody.innerHTML = '<p class="search-status">No new recommendations found right now — try rating a few more titles.</p>';
+        return;
+      }
+
+      lastRecommendations = combined.map(function(m){
+        return {
+          apiId: m.id,
+          title: pickTitle(m.title),
+          image: m.coverImage ? (m.coverImage.large || m.coverImage.medium || "") : "",
+          episodes: m.episodes || null,
+          format: m.format || "",
+          year: m.seasonYear || null
+        };
+      });
+
+      discoverModalBody.innerHTML =
+        '<p class="search-hint">Based on your highly-rated titles:</p>' +
+        '<div class="results-list">' + lastRecommendations.map(function(item, i){
+          var img = item.image ? '<img src="' + escapeHtml(item.image) + '" alt="">' : '<div class="poster-fallback" aria-hidden="true">🎬</div>';
+          var sub = [item.format, item.year, item.episodes ? (item.episodes + " ep") : "ongoing/unknown"].filter(Boolean).join(" · ");
+          return '<div class="result-row" style="animation-delay:' + Math.min(i * 40, 280) + 'ms">' + img +
+            '<div class="result-info"><div class="result-title">' + escapeHtml(item.title) + '</div><div class="result-sub">' + escapeHtml(sub) + "</div></div>" +
+            '<button type="button" class="result-add-btn" data-rec-index="' + i + '">Add</button>' +
+          "</div>";
+        }).join("") + "</div>";
+    });
+  }
+
+  discoverModalBody.addEventListener("click", function(ev){
+    var btn = ev.target.closest(".result-add-btn");
+    if(!btn || btn.disabled) return;
+    var idx = parseInt(btn.getAttribute("data-rec-index"), 10);
+    var item = lastRecommendations[idx];
+    if(!item) return;
+    addEntry(item);
+    btn.disabled = true;
+    btn.textContent = "Added ✓";
+    showToast('Added "' + item.title + '" to your log.');
+  });
+
+  document.getElementById("discoverBtn").addEventListener("click", function(){
+    discoverModalBackdrop.classList.add("open");
+    runDiscover();
+  });
+  document.getElementById("closeDiscoverModalBtn").addEventListener("click", function(){
+    discoverModalBackdrop.classList.remove("open");
+  });
+  discoverModalBackdrop.addEventListener("click", function(ev){
+    if(ev.target === discoverModalBackdrop){ discoverModalBackdrop.classList.remove("open"); }
+  });
+
+  // ---------- share image ----------
+  function drawRoundedRect(ctx, x, y, w, h, r){
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function buildShareImage(){
+    var canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 500;
+    var ctx = canvas.getContext && canvas.getContext("2d");
+    if(!ctx) return null; // some environments don't support canvas — caller handles this gracefully
+
+    var totalEpisodes = 0, totalMinutes = 0;
+    var ratedCount = 0, ratingSum = 0;
+    var genreCounts = {};
+    state.entries.forEach(function(e){
+      e.seasons.forEach(function(season){
+        totalEpisodes += season.watched.length;
+        totalMinutes += season.watched.length * (season.duration || FALLBACK_EP_MINUTES);
+      });
+      if(e.rating != null){ ratedCount++; ratingSum += e.rating; }
+      (e.genres || []).forEach(function(g){ genreCounts[g] = (genreCounts[g] || 0) + 1; });
+    });
+    var topGenres = Object.keys(genreCounts).sort(function(a, b){ return genreCounts[b] - genreCounts[a]; }).slice(0, 3);
+    var avgRating = ratedCount > 0 ? (ratingSum / ratedCount).toFixed(1) : null;
+
+    var topRated = state.entries
+      .filter(function(e){ return e.rating != null; })
+      .sort(function(a, b){ return b.rating - a.rating; })
+      .slice(0, 5);
+
+    // background
+    var grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, "#161320");
+    grad.addColorStop(1, "#0c0b11");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    var accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#f2a154";
+
+    // header
+    ctx.fillStyle = "#f1ece2";
+    ctx.font = "700 38px 'Work Sans', sans-serif";
+    ctx.fillText("WATCH LOG", 40, 64);
+    ctx.fillStyle = "#aea5b9";
+    ctx.font = "400 16px 'Work Sans', sans-serif";
+    ctx.fillText("My anime watch stats", 40, 90);
+
+    // highlight tiles
+    var tiles = [
+      { label: "TITLES", value: String(state.entries.length) },
+      { label: "EPISODES", value: String(totalEpisodes) },
+      { label: "WATCH TIME", value: formatWatchTime(totalMinutes) },
+      { label: "AVG RATING", value: avgRating || "—" }
+    ];
+    var tileW = 170, tileGap = 16, startX = 40, tileY = 120, tileH = 80;
+    tiles.forEach(function(t, i){
+      var x = startX + i * (tileW + tileGap);
+      drawRoundedRect(ctx, x, tileY, tileW, tileH, 10);
+      ctx.fillStyle = "rgba(255,255,255,0.04)";
+      ctx.fill();
+      ctx.fillStyle = accent;
+      ctx.font = "700 28px 'Work Sans', sans-serif";
+      ctx.fillText(t.value, x + 16, tileY + 38);
+      ctx.fillStyle = "#756d83";
+      ctx.font = "600 11px 'Work Sans', sans-serif";
+      ctx.fillText(t.label, x + 16, tileY + 60);
+    });
+
+    // top genres
+    var listY = 245;
+    ctx.fillStyle = "#756d83";
+    ctx.font = "600 12px 'Work Sans', sans-serif";
+    ctx.fillText("TOP GENRES", 40, listY);
+    ctx.fillStyle = "#f1ece2";
+    ctx.font = "400 16px 'Work Sans', sans-serif";
+    ctx.fillText(topGenres.length ? topGenres.join("   ·   ") : "—", 40, listY + 24);
+
+    // top rated list
+    var ratedY = listY + 60;
+    ctx.fillStyle = "#756d83";
+    ctx.font = "600 12px 'Work Sans', sans-serif";
+    ctx.fillText("TOP RATED", 40, ratedY);
+    if(topRated.length === 0){
+      ctx.fillStyle = "#aea5b9";
+      ctx.font = "400 15px 'Work Sans', sans-serif";
+      ctx.fillText("Rate a few titles to see them here.", 40, ratedY + 26);
+    } else {
+      topRated.forEach(function(e, i){
+        var y = ratedY + 30 + i * 28;
+        ctx.fillStyle = accent;
+        ctx.font = "700 14px 'JetBrains Mono', monospace";
+        ctx.fillText(e.rating + "/10", 40, y);
+        ctx.fillStyle = "#f1ece2";
+        ctx.font = "400 15px 'Work Sans', sans-serif";
+        var title = e.title.length > 50 ? e.title.slice(0, 50) + "…" : e.title;
+        ctx.fillText(title, 105, y);
+      });
+    }
+
+    ctx.fillStyle = "#48414f";
+    ctx.font = "400 12px 'Work Sans', sans-serif";
+    ctx.fillText("Made with Watch Log", 40, canvas.height - 24);
+
+    return canvas;
+  }
+
+  document.getElementById("shareBtn").addEventListener("click", function(){
+    if(state.entries.length === 0){
+      showToast("Add a few titles first, then come back and share!");
+      return;
+    }
+    var canvas = buildShareImage();
+    if(!canvas){
+      showToast("Your browser doesn't support generating images here.");
+      return;
+    }
+    canvas.toBlob(function(blob){
+      if(!blob){ showToast("Couldn't generate the image."); return; }
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "watch-log-stats.png";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast("Image downloaded!");
+    });
+  });
+
+
   document.getElementById("exportBtn").addEventListener("click", function(){
     var blob = new Blob([JSON.stringify(state.entries, null, 2)], { type: "application/json" });
     var url = URL.createObjectURL(blob);
@@ -1287,6 +1738,58 @@
     reader.readAsText(file);
   });
 
+  // ---------- view mode (grid/compact) ----------
+  var VIEW_MODE_KEY = "watchlog.viewMode";
+  function applyViewMode(mode){
+    var grid = document.getElementById("grid");
+    var btn = document.getElementById("viewModeBtn");
+    if(mode === "compact"){
+      grid.classList.add("compact-view");
+      btn.textContent = "☰ Grid";
+    } else {
+      grid.classList.remove("compact-view");
+      btn.textContent = "☷ Compact";
+    }
+  }
+  document.getElementById("viewModeBtn").addEventListener("click", function(){
+    var isCompact = document.getElementById("grid").classList.contains("compact-view");
+    var next = isCompact ? "grid" : "compact";
+    applyViewMode(next);
+    try{ localStorage.setItem(VIEW_MODE_KEY, next); }catch(e){}
+  });
+  (function initViewMode(){
+    var saved = null;
+    try{ saved = localStorage.getItem(VIEW_MODE_KEY); }catch(e){}
+    if(saved === "compact"){ applyViewMode("compact"); }
+  })();
+
+  // ---------- accent color ----------
+  var ACCENT_KEY = "watchlog.accentColor";
+  function hexToRgba(hex, alpha){
+    var h = hex.replace("#", "");
+    if(h.length === 3){ h = h.split("").map(function(c){ return c + c; }).join(""); }
+    var r = parseInt(h.substring(0, 2), 16);
+    var g = parseInt(h.substring(2, 4), 16);
+    var b = parseInt(h.substring(4, 6), 16);
+    return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+  }
+  function applyAccentColor(hex){
+    document.documentElement.style.setProperty("--accent", hex);
+    document.documentElement.style.setProperty("--accent-soft", hexToRgba(hex, 0.14));
+  }
+  (function initAccent(){
+    var saved = null;
+    try{ saved = localStorage.getItem(ACCENT_KEY); }catch(e){}
+    if(saved){
+      applyAccentColor(saved);
+      document.getElementById("accentPicker").value = saved;
+    }
+  })();
+  document.getElementById("accentPicker").addEventListener("input", function(ev){
+    applyAccentColor(ev.target.value);
+    try{ localStorage.setItem(ACCENT_KEY, ev.target.value); }catch(e){}
+  });
+
   // ---------- theme toggle ----------
   var THEME_KEY = "watchlog.theme";
   function applyThemeButtonLabel(){
@@ -1315,11 +1818,11 @@
         if(id != null && ids.indexOf(id) === -1){ ids.push(id); }
       }
     });
-    if(ids.length === 0) return;
+    if(ids.length === 0) return Promise.resolve();
     ids = ids.slice(0, 50); // AniList Page perPage cap — plenty for any realistic "currently watching" count
 
     var gql = "query ($ids: [Int]) { Page(perPage: 50) { media(id_in: $ids, type: ANIME) { id status nextAiringEpisode { episode airingAt } } } }";
-    fetch("https://graphql.anilist.co", {
+    return fetch("https://graphql.anilist.co", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
       body: JSON.stringify({ query: gql, variables: { ids: ids } })
@@ -1337,6 +1840,67 @@
       renderGrid();
     }).catch(function(){ /* non-critical — countdown just won't show this session */ });
   }
+
+  var WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+  function renderScheduleModalBody(){
+    var body = document.getElementById("scheduleModalBody");
+    var watchingEntries = state.entries.filter(function(e){ return e.status === "watching"; });
+
+    if(watchingEntries.length === 0){
+      body.innerHTML = '<p class="search-status">Mark something as "Watching" to see its airing schedule here.</p>';
+      return;
+    }
+
+    var buckets = [[], [], [], [], [], [], []]; // Sun..Sat
+    var anyData = false;
+    watchingEntries.forEach(function(e){
+      var id = relevantApiId(e);
+      var info = id != null ? state.airingInfo[id] : null;
+      if(!info) return;
+      var countdown = formatCountdown(info.airingAt);
+      if(!countdown) return;
+      anyData = true;
+      var day = new Date(info.airingAt * 1000).getDay();
+      buckets[day].push({ title: e.title, episode: info.episode, countdown: countdown, airingAt: info.airingAt });
+    });
+
+    if(!anyData){
+      body.innerHTML = '<p class="search-status">No upcoming air dates found yet for your watching list. This refreshes each time you load the page.</p>';
+      return;
+    }
+
+    var todayIdx = new Date().getDay();
+    var cols = "";
+    for(var offset = 0; offset < 7; offset++){
+      var dayIdx = (todayIdx + offset) % 7;
+      var items = buckets[dayIdx].slice().sort(function(a, b){ return a.airingAt - b.airingAt; });
+      var rows = items.length
+        ? items.map(function(it){
+            return '<div class="schedule-item"><span class="schedule-item-title">' + escapeHtml(it.title) + '</span>' +
+              '<span class="schedule-item-meta">Ep ' + it.episode + " · " + it.countdown + "</span></div>";
+          }).join("")
+        : '<p class="schedule-empty">—</p>';
+      cols += '<div class="schedule-day' + (offset === 0 ? " today" : "") + '">' +
+        '<div class="schedule-day-label">' + (offset === 0 ? "Today" : WEEKDAY_NAMES[dayIdx]) + "</div>" +
+        rows +
+      "</div>";
+    }
+    body.innerHTML = '<div class="schedule-grid">' + cols + "</div>";
+  }
+
+  var scheduleModalBackdrop = document.getElementById("scheduleModalBackdrop");
+  document.getElementById("scheduleBtn").addEventListener("click", function(){
+    scheduleModalBackdrop.classList.add("open");
+    document.getElementById("scheduleModalBody").innerHTML = '<p class="search-status">Loading schedule…</p>';
+    fetchAiringInfo().then(renderScheduleModalBody);
+  });
+  document.getElementById("closeScheduleModalBtn").addEventListener("click", function(){
+    scheduleModalBackdrop.classList.remove("open");
+  });
+  scheduleModalBackdrop.addEventListener("click", function(ev){
+    if(ev.target === scheduleModalBackdrop){ scheduleModalBackdrop.classList.remove("open"); }
+  });
 
   // ---------- ad slots ----------
   function injectAd(slot, key, width, height){
@@ -1371,6 +1935,15 @@
         topZone.classList.add("ad-hidden");
       }
     }
+  }
+
+  // ---------- PWA: service worker registration ----------
+  if("serviceWorker" in navigator){
+    window.addEventListener("load", function(){
+      navigator.serviceWorker.register("service-worker.js").catch(function(){
+        // Non-critical — the site still works fully online without it.
+      });
+    });
   }
 
   // ---------- init ----------

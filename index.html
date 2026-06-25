@@ -15,6 +15,9 @@
   })();
 </script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23121018'/%3E%3Crect x='6' y='9' width='20' height='14' rx='2' fill='none' stroke='%23f2a154' stroke-width='2'/%3E%3Cpolygon points='14,13 14,19 20,16' fill='%23f2a154'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="theme-color" content="#121018">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;500;600&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -36,7 +39,12 @@
       <div class="stats-line" id="statsLine">0 titles · 0 episodes watched</div>
     </div>
     <div class="header-actions">
+      <button class="btn btn-ghost btn-small" id="statsBtn" title="View your stats">📊 Stats</button>
+      <button class="btn btn-ghost btn-small" id="scheduleBtn" title="Weekly airing schedule">📅 Schedule</button>
+      <button class="btn btn-ghost btn-small" id="discoverBtn" title="Get recommendations based on your top-rated shows">🔮 Discover</button>
+      <button class="btn btn-ghost btn-small" id="shareBtn" title="Download a shareable image of your stats">📤 Share</button>
       <button class="btn btn-ghost btn-small" id="importAniListBtn" title="Import your list from AniList">⇩ Import list</button>
+      <input type="color" id="accentPicker" class="accent-picker" value="#f2a154" title="Accent color" aria-label="Accent color">
       <button class="btn btn-ghost btn-icon" id="themeToggle" title="Toggle light/dark theme" aria-label="Toggle light/dark theme">🌙</button>
       <button class="btn btn-primary" id="openAddBtn">+ Add Anime</button>
     </div>
@@ -50,7 +58,14 @@
   <div class="toolbar">
     <div class="tabs" id="tabs" role="tablist" aria-label="Filter by status"></div>
     <div class="toolbar-controls">
+      <button class="btn btn-ghost btn-small" id="viewModeBtn" title="Switch between grid and compact view">☷ Compact</button>
       <button class="btn btn-ghost btn-small" id="randomPickBtn" title="Get a random pick from your list">🎲 Pick for me</button>
+      <select class="sort-select" id="genreFilterSelect" aria-label="Filter by genre">
+        <option value="">All genres</option>
+      </select>
+      <select class="sort-select" id="tagFilterSelect" aria-label="Filter by tag">
+        <option value="">All tags</option>
+      </select>
       <select class="sort-select" id="sortSelect" aria-label="Sort order">
         <option value="manual">Manual order</option>
         <option value="title">Title A–Z</option>
@@ -130,7 +145,40 @@
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<!-- Stats Modal -->
+<div class="modal-backdrop" id="statsModalBackdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="statsModalTitle">
+    <div class="modal-head">
+      <h2 id="statsModalTitle">Your Stats</h2>
+      <button class="modal-close" id="closeStatsModalBtn" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="statsModalBody"></div>
+  </div>
+</div>
+
+<!-- Weekly Schedule Modal -->
+<div class="modal-backdrop" id="scheduleModalBackdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="scheduleModalTitle">
+    <div class="modal-head">
+      <h2 id="scheduleModalTitle">Weekly Schedule</h2>
+      <button class="modal-close" id="closeScheduleModalBtn" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="scheduleModalBody"></div>
+  </div>
+</div>
+
+<!-- Discover/Recommendations Modal -->
+<div class="modal-backdrop" id="discoverModalBackdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="discoverModalTitle">
+    <div class="modal-head">
+      <h2 id="discoverModalTitle">Discover</h2>
+      <button class="modal-close" id="closeDiscoverModalBtn" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="discoverModalBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="toast-msg"></span></div>
 
 </body>
 </html>
