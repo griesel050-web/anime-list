@@ -497,8 +497,8 @@
                 '<div class="section-label">Tags</div>' +
                 '<div class="tag-chip-row">' +
                   (entry.tags || []).map(function(t){
-                    return '<span class="tag-chip">' + escapeHtml(t) +
-                      '<button type="button" data-action="tag-remove" data-tag="' + escapeHtml(t) + '" aria-label="Remove tag">&times;</button></span>';
+                    return '<span class="chip tag-chip">' + escapeHtml(t) +
+                      '<button type="button" class="tag-remove" data-action="remove-tag" data-tag="' + escapeHtml(t) + '" aria-label="Remove tag">&times;</button></span>';
                   }).join("") +
                 "</div>" +
                 '<input type="text" class="tag-input" data-action="tag-input" placeholder="Add a tag, press Enter">' +
@@ -859,11 +859,11 @@
       saveEntries(); render();
       showToast('Added "' + label + '".');
 
-    } else if(action === "tag-remove"){
+    } else if(action === "remove-tag"){
       var tagToRemove = actionEl.getAttribute("data-tag");
       entry.tags = (entry.tags || []).filter(function(t){ return t !== tagToRemove; });
       entry.updatedAt = Date.now();
-      saveEntries(); render(); refreshFilterOptions();
+      saveEntries(); render();
     }
   });
 
@@ -881,7 +881,7 @@
     if(entry.tags.indexOf(val) === -1){ entry.tags.push(val); }
     entry.updatedAt = Date.now();
     state.lastTouchedEntryId = entry.id;
-    saveEntries(); render(); refreshFilterOptions();
+    saveEntries(); render();
   });
 
   // ---------- grid: change delegation (text/number/select inputs) ----------
@@ -1785,8 +1785,17 @@
       document.getElementById("accentPicker").value = saved;
     }
   })();
+  var accentRaf = null;
+  var pendingAccentVal = null;
   document.getElementById("accentPicker").addEventListener("input", function(ev){
-    applyAccentColor(ev.target.value);
+    pendingAccentVal = ev.target.value;
+    if(accentRaf) return; // a frame is already scheduled — it'll pick up the latest value
+    accentRaf = requestAnimationFrame(function(){
+      applyAccentColor(pendingAccentVal);
+      accentRaf = null;
+    });
+  });
+  document.getElementById("accentPicker").addEventListener("change", function(ev){
     try{ localStorage.setItem(ACCENT_KEY, ev.target.value); }catch(e){}
   });
 
