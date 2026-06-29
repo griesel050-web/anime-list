@@ -39,16 +39,18 @@
       <div class="stats-line" id="statsLine">0 titles · 0 episodes watched</div>
     </div>
     <div class="header-actions">
-      <button class="btn btn-ghost btn-small" id="statsBtn" title="View your stats">📊 Stats</button>
-      <button class="btn btn-ghost btn-small" id="scheduleBtn" title="Weekly airing schedule">📅 Schedule</button>
-      <button class="btn btn-ghost btn-small" id="discoverBtn" title="Get recommendations based on your top-rated shows">🔮 Discover</button>
-      <button class="btn btn-ghost btn-small" id="shareBtn" title="Download a shareable image of your stats">📤 Share</button>
       <button class="btn btn-ghost btn-small" id="importAniListBtn" title="Import your list from AniList">⇩ Import list</button>
-      <input type="color" id="accentPicker" class="accent-picker" value="#f2a154" title="Accent color" aria-label="Accent color">
-      <button class="btn btn-ghost btn-icon" id="themeToggle" title="Toggle light/dark theme" aria-label="Toggle light/dark theme">🌙</button>
       <button class="btn btn-primary" id="openAddBtn">+ Add Anime</button>
     </div>
   </header>
+
+  <nav class="top-nav">
+    <a href="index.html" class="nav-link active">🎬 My List</a>
+    <a href="stats.html" class="nav-link">📊 Stats</a>
+    <a href="schedule.html" class="nav-link">📅 Schedule</a>
+    <a href="discover.html" class="nav-link">🔮 Discover</a>
+    <a href="settings.html" class="nav-link">⚙️ Settings</a>
+  </nav>
 
   <div class="ad-zone ad-zone-top" id="adZoneTop">
     <div class="ad-label">Advertisement</div>
@@ -84,12 +86,7 @@
   </div>
 
   <footer class="footer">
-    <span>Stored locally in this browser. Export a backup before clearing browser data or switching devices.</span>
-    <div class="footer-actions">
-      <button class="btn btn-ghost btn-small" id="exportBtn">Export JSON</button>
-      <button class="btn btn-ghost btn-small" id="importBtn">Import JSON</button>
-      <input type="file" id="importFile" accept="application/json" class="visually-hidden">
-    </div>
+    <span>Stored locally in this browser. Back up your data any time from the <a href="settings.html">Settings</a> page.</span>
   </footer>
 </div>
 
@@ -142,39 +139,6 @@
       <div class="search-status" id="importStatus"></div>
       <div id="importPreview"></div>
     </div>
-  </div>
-</div>
-
-<!-- Stats Modal -->
-<div class="modal-backdrop" id="statsModalBackdrop">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="statsModalTitle">
-    <div class="modal-head">
-      <h2 id="statsModalTitle">Your Stats</h2>
-      <button class="modal-close" id="closeStatsModalBtn" aria-label="Close">&times;</button>
-    </div>
-    <div class="modal-body" id="statsModalBody"></div>
-  </div>
-</div>
-
-<!-- Weekly Schedule Modal -->
-<div class="modal-backdrop" id="scheduleModalBackdrop">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="scheduleModalTitle">
-    <div class="modal-head">
-      <h2 id="scheduleModalTitle">Weekly Schedule</h2>
-      <button class="modal-close" id="closeScheduleModalBtn" aria-label="Close">&times;</button>
-    </div>
-    <div class="modal-body" id="scheduleModalBody"></div>
-  </div>
-</div>
-
-<!-- Discover/Recommendations Modal -->
-<div class="modal-backdrop" id="discoverModalBackdrop">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="discoverModalTitle">
-    <div class="modal-head">
-      <h2 id="discoverModalTitle">Discover</h2>
-      <button class="modal-close" id="closeDiscoverModalBtn" aria-label="Close">&times;</button>
-    </div>
-    <div class="modal-body" id="discoverModalBody"></div>
   </div>
 </div>
 

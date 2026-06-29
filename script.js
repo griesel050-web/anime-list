@@ -234,6 +234,8 @@
   }
 
   function renderStats(){
+    var statsLineEl = document.getElementById("statsLine");
+    if(!statsLineEl) return;
     var totalTitles = state.entries.length;
     var totalEpisodes = 0, totalMinutes = 0;
     state.entries.forEach(function(e){
@@ -242,17 +244,18 @@
         totalMinutes += season.watched.length * (season.duration || FALLBACK_EP_MINUTES);
       });
     });
-    document.getElementById("statsLine").innerHTML =
+    statsLineEl.innerHTML =
       '<strong class="stat-pulse">' + totalTitles + "</strong> title" + (totalTitles === 1 ? "" : "s") +
       ' · <strong class="stat-pulse">' + totalEpisodes + "</strong> episode" + (totalEpisodes === 1 ? "" : "s") + " watched" +
       ' · <strong class="stat-pulse">' + formatWatchTime(totalMinutes) + "</strong> watch time";
   }
 
   function renderTabs(){
+    var tabsEl = document.getElementById("tabs");
+    if(!tabsEl) return;
     var counts = { all: state.entries.length, watching: 0, completed: 0, plan: 0, dropped: 0 };
     state.entries.forEach(function(e){ if(counts[e.status] != null) counts[e.status]++; });
 
-    var tabsEl = document.getElementById("tabs");
     var defs = [{ key: "all", label: "All" }].concat(statusOrder.map(function(k){
       return { key: k, label: statusMeta[k].label };
     }));
@@ -516,6 +519,7 @@
 
   function renderGrid(){
     var grid = document.getElementById("grid");
+    if(!grid) return;
     var list = visibleEntries();
 
     if(state.entries.length === 0){
@@ -554,6 +558,31 @@
     renderGrid();
     refreshFilterOptions();
   }
+
+  function refreshFilterOptions(){
+    var genreSel = document.getElementById("genreFilterSelect");
+    var tagSel = document.getElementById("tagFilterSelect");
+    if(!genreSel || !tagSel) return;
+
+    var genreSet = {}, tagSet = {};
+    state.entries.forEach(function(e){
+      (e.genres || []).forEach(function(g){ genreSet[g] = true; });
+      (e.tags || []).forEach(function(t){ tagSet[t] = true; });
+    });
+    var genres = Object.keys(genreSet).sort(function(a, b){ return a.localeCompare(b); });
+    var tags = Object.keys(tagSet).sort(function(a, b){ return a.localeCompare(b); });
+
+    var keepGenre = genres.indexOf(state.genreFilter) !== -1 ? state.genreFilter : "";
+    genreSel.innerHTML = '<option value="">All genres</option>' +
+      genres.map(function(g){ return '<option value="' + escapeHtml(g) + '"' + (g === keepGenre ? " selected" : "") + ">" + escapeHtml(g) + "</option>"; }).join("");
+    state.genreFilter = keepGenre;
+
+    var keepTag = tags.indexOf(state.tagFilter) !== -1 ? state.tagFilter : "";
+    tagSel.innerHTML = '<option value="">All tags</option>' +
+      tags.map(function(t){ return '<option value="' + escapeHtml(t) + '"' + (t === keepTag ? " selected" : "") + ">" + escapeHtml(t) + "</option>"; }).join("");
+    state.tagFilter = keepTag;
+  }
+
 
   // ---------- entry mutations ----------
   function findEntry(id){
@@ -729,6 +758,9 @@
   }
 
   // ---------- grid: click delegation ----------
+  // Everything from here through the end of the toolbar/filter listeners only applies
+  // to the main list page — pages without a #grid (Stats/Schedule/Discover/Settings) skip it entirely.
+  if(document.getElementById("grid")){
   document.getElementById("grid").addEventListener("click", function(ev){
     // description expand/collapse is purely local UI state — no re-render needed
     var descToggle = ev.target.closest('[data-action="toggle-description"]');
@@ -1007,28 +1039,6 @@
     renderGrid();
   });
 
-  function refreshFilterOptions(){
-    var genreSet = {}, tagSet = {};
-    state.entries.forEach(function(e){
-      (e.genres || []).forEach(function(g){ genreSet[g] = true; });
-      (e.tags || []).forEach(function(t){ tagSet[t] = true; });
-    });
-    var genres = Object.keys(genreSet).sort(function(a, b){ return a.localeCompare(b); });
-    var tags = Object.keys(tagSet).sort(function(a, b){ return a.localeCompare(b); });
-
-    var genreSel = document.getElementById("genreFilterSelect");
-    var keepGenre = genres.indexOf(state.genreFilter) !== -1 ? state.genreFilter : "";
-    genreSel.innerHTML = '<option value="">All genres</option>' +
-      genres.map(function(g){ return '<option value="' + escapeHtml(g) + '"' + (g === keepGenre ? " selected" : "") + ">" + escapeHtml(g) + "</option>"; }).join("");
-    state.genreFilter = keepGenre;
-
-    var tagSel = document.getElementById("tagFilterSelect");
-    var keepTag = tags.indexOf(state.tagFilter) !== -1 ? state.tagFilter : "";
-    tagSel.innerHTML = '<option value="">All tags</option>' +
-      tags.map(function(t){ return '<option value="' + escapeHtml(t) + '"' + (t === keepTag ? " selected" : "") + ">" + escapeHtml(t) + "</option>"; }).join("");
-    state.tagFilter = keepTag;
-  }
-
   document.getElementById("randomPickBtn").addEventListener("click", function(){
     if(state.entries.length === 0){
       showToast("Add something to your log first!");
@@ -1053,6 +1063,7 @@
     }
     showToast('How about "' + pick.title + '"?');
   });
+  } // end grid/toolbar guard
 
   // ---------- modal: add anime ----------
   var modalBackdrop = document.getElementById("modalBackdrop");
@@ -1076,18 +1087,12 @@
     modalBackdrop.classList.remove("open");
   }
 
-  document.getElementById("openAddBtn").addEventListener("click", openModal);
-  document.getElementById("closeModalBtn").addEventListener("click", closeModal);
-  modalBackdrop.addEventListener("click", function(ev){
-    if(ev.target === modalBackdrop) closeModal();
-  });
+  // Global keyboard shortcuts/Escape handling — runs on every page, but most branches
+  // are no-ops (via the element-existence checks) on pages without these controls.
   document.addEventListener("keydown", function(ev){
     if(ev.key === "Escape"){
-      if(modalBackdrop.classList.contains("open")) closeModal();
+      if(modalBackdrop && modalBackdrop.classList.contains("open")) closeModal();
       if(importModalBackdrop && importModalBackdrop.classList.contains("open")) closeImportModal();
-      if(statsModalBackdrop && statsModalBackdrop.classList.contains("open")) statsModalBackdrop.classList.remove("open");
-      if(scheduleModalBackdrop && scheduleModalBackdrop.classList.contains("open")) scheduleModalBackdrop.classList.remove("open");
-      if(discoverModalBackdrop && discoverModalBackdrop.classList.contains("open")) discoverModalBackdrop.classList.remove("open");
       return;
     }
 
@@ -1095,18 +1100,25 @@
     var typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" ||
       (document.activeElement && document.activeElement.isContentEditable);
     if(typing) return;
-    if(modalBackdrop.classList.contains("open") || (importModalBackdrop && importModalBackdrop.classList.contains("open"))) return;
+    if((modalBackdrop && modalBackdrop.classList.contains("open")) || (importModalBackdrop && importModalBackdrop.classList.contains("open"))) return;
 
     if(ev.key === "/"){
-      ev.preventDefault();
-      document.getElementById("searchMine").focus();
+      var searchEl = document.getElementById("searchMine");
+      if(searchEl){ ev.preventDefault(); searchEl.focus(); }
     } else if(ev.key === "n" || ev.key === "N"){
-      ev.preventDefault();
-      openModal();
+      if(document.getElementById("modalBackdrop")){ ev.preventDefault(); openModal(); }
     } else if(ev.key === "r" || ev.key === "R"){
-      ev.preventDefault();
-      document.getElementById("randomPickBtn").click();
+      var randomBtn = document.getElementById("randomPickBtn");
+      if(randomBtn){ ev.preventDefault(); randomBtn.click(); }
     }
+  });
+
+  // The rest of the Add Anime modal (buttons, manual-add form, live search) only exists on index.html.
+  if(modalBackdrop){
+  document.getElementById("openAddBtn").addEventListener("click", openModal);
+  document.getElementById("closeModalBtn").addEventListener("click", closeModal);
+  modalBackdrop.addEventListener("click", function(ev){
+    if(ev.target === modalBackdrop) closeModal();
   });
 
   document.getElementById("manualToggle").addEventListener("click", function(ev){
@@ -1234,6 +1246,7 @@
     }
     state.searchTimer = setTimeout(function(){ searchAniList(q); }, 450);
   });
+  } // end Add Anime modal guard
 
   // ---------- stats dashboard ----------
   function statBarRow(label, count, max){
@@ -1247,8 +1260,9 @@
     );
   }
 
-  function renderStatsModalBody(){
-    var body = document.getElementById("statsModalBody");
+  function renderStatsPage(){
+    var body = document.getElementById("statsPageBody");
+    if(!body) return;
     if(state.entries.length === 0){
       body.innerHTML = '<p class="search-status">Add a few titles first, then come back here.</p>';
       return;
@@ -1301,21 +1315,18 @@
       '<div class="section-label">Top genres</div>' + genreHtml +
       '<div class="section-label">Your ratings</div>' + ratingHtml;
   }
-
-  var statsModalBackdrop = document.getElementById("statsModalBackdrop");
-  document.getElementById("statsBtn").addEventListener("click", function(){
-    renderStatsModalBody();
-    statsModalBackdrop.classList.add("open");
-  });
-  document.getElementById("closeStatsModalBtn").addEventListener("click", function(){
-    statsModalBackdrop.classList.remove("open");
-  });
-  statsModalBackdrop.addEventListener("click", function(ev){
-    if(ev.target === statsModalBackdrop){ statsModalBackdrop.classList.remove("open"); }
-  });
+  renderStatsPage();
 
 
+  // ---------- import from AniList (index.html only) ----------
+  // declared here (unconditionally) since the Escape-key handler above needs to reach it
+  // regardless of strict-mode block-scoping for function declarations inside `if(){}`
   var importModalBackdrop = document.getElementById("importModalBackdrop");
+  function closeImportModal(){
+    if(importModalBackdrop){ importModalBackdrop.classList.remove("open"); }
+  }
+
+  if(document.getElementById("importModalBackdrop")){
   var importUsernameInput = document.getElementById("importUsernameInput");
   var importStatusEl = document.getElementById("importStatus");
   var importPreviewEl = document.getElementById("importPreview");
@@ -1339,9 +1350,6 @@
     importPreviewEl.innerHTML = "";
     pendingImportItems = [];
     setTimeout(function(){ importUsernameInput.focus(); }, 30);
-  }
-  function closeImportModal(){
-    importModalBackdrop.classList.remove("open");
   }
 
   document.getElementById("importAniListBtn").addEventListener("click", openImportModal);
@@ -1457,10 +1465,11 @@
     if(!name){ showToast("Enter a username first."); return; }
     fetchAniListImport(name);
   });
+  } // end AniList import guard
 
-  // ---------- discover / recommendations ----------
-  var discoverModalBackdrop = document.getElementById("discoverModalBackdrop");
-  var discoverModalBody = document.getElementById("discoverModalBody");
+  // ---------- discover / recommendations (own page) ----------
+  if(document.getElementById("discoverPageBody")){
+  var discoverPageBody = document.getElementById("discoverPageBody");
   var lastRecommendations = [];
 
   function fetchRecommendationsFor(apiId){
@@ -1486,11 +1495,11 @@
       .slice(0, 3);
 
     if(seeds.length === 0){
-      discoverModalBody.innerHTML = '<p class="search-status">Rate a few titles 8/10 or higher first — recommendations are based on what you already love.</p>';
+      discoverPageBody.innerHTML = '<p class="search-status">Rate a few titles 8/10 or higher first — recommendations are based on what you already love.</p>';
       return;
     }
 
-    discoverModalBody.innerHTML = '<p class="search-status">Looking for shows similar to ' + seeds.map(function(s){ return escapeHtml(s.title); }).join(", ") + "…</p>";
+    discoverPageBody.innerHTML = '<p class="search-status">Looking for shows similar to ' + seeds.map(function(s){ return escapeHtml(s.title); }).join(", ") + "…</p>";
 
     Promise.all(seeds.map(function(s){ return fetchRecommendationsFor(s.apiId); })).then(function(results){
       var existingIds = {};
@@ -1508,7 +1517,7 @@
       combined = combined.slice(0, 8);
 
       if(combined.length === 0){
-        discoverModalBody.innerHTML = '<p class="search-status">No new recommendations found right now — try rating a few more titles.</p>';
+        discoverPageBody.innerHTML = '<p class="search-status">No new recommendations found right now — try rating a few more titles.</p>';
         return;
       }
 
@@ -1523,7 +1532,7 @@
         };
       });
 
-      discoverModalBody.innerHTML =
+      discoverPageBody.innerHTML =
         '<p class="search-hint">Based on your highly-rated titles:</p>' +
         '<div class="results-list">' + lastRecommendations.map(function(item, i){
           var img = item.image ? '<img src="' + escapeHtml(item.image) + '" alt="">' : '<div class="poster-fallback" aria-hidden="true">🎬</div>';
@@ -1536,7 +1545,7 @@
     });
   }
 
-  discoverModalBody.addEventListener("click", function(ev){
+  discoverPageBody.addEventListener("click", function(ev){
     var btn = ev.target.closest(".result-add-btn");
     if(!btn || btn.disabled) return;
     var idx = parseInt(btn.getAttribute("data-rec-index"), 10);
@@ -1548,16 +1557,8 @@
     showToast('Added "' + item.title + '" to your log.');
   });
 
-  document.getElementById("discoverBtn").addEventListener("click", function(){
-    discoverModalBackdrop.classList.add("open");
-    runDiscover();
-  });
-  document.getElementById("closeDiscoverModalBtn").addEventListener("click", function(){
-    discoverModalBackdrop.classList.remove("open");
-  });
-  discoverModalBackdrop.addEventListener("click", function(ev){
-    if(ev.target === discoverModalBackdrop){ discoverModalBackdrop.classList.remove("open"); }
-  });
+  runDiscover();
+  } // end discover guard
 
   // ---------- share image ----------
   function drawRoundedRect(ctx, x, y, w, h, r){
@@ -1672,6 +1673,7 @@
     return canvas;
   }
 
+  if(document.getElementById("shareBtn")){
   document.getElementById("shareBtn").addEventListener("click", function(){
     if(state.entries.length === 0){
       showToast("Add a few titles first, then come back and share!");
@@ -1695,8 +1697,10 @@
       showToast("Image downloaded!");
     });
   });
+  } // end share guard
 
-
+  // ---------- export / import JSON (settings.html) ----------
+  if(document.getElementById("exportBtn")){
   document.getElementById("exportBtn").addEventListener("click", function(){
     var blob = new Blob([JSON.stringify(state.entries, null, 2)], { type: "application/json" });
     var url = URL.createObjectURL(blob);
@@ -1737,12 +1741,14 @@
     };
     reader.readAsText(file);
   });
+  } // end export/import JSON guard
 
-  // ---------- view mode (grid/compact) ----------
+  // ---------- view mode (grid/compact) — index.html only ----------
   var VIEW_MODE_KEY = "watchlog.viewMode";
   function applyViewMode(mode){
     var grid = document.getElementById("grid");
     var btn = document.getElementById("viewModeBtn");
+    if(!grid || !btn) return;
     if(mode === "compact"){
       grid.classList.add("compact-view");
       btn.textContent = "☰ Grid";
@@ -1751,19 +1757,21 @@
       btn.textContent = "☷ Compact";
     }
   }
+  if(document.getElementById("viewModeBtn")){
   document.getElementById("viewModeBtn").addEventListener("click", function(){
     var isCompact = document.getElementById("grid").classList.contains("compact-view");
     var next = isCompact ? "grid" : "compact";
     applyViewMode(next);
     try{ localStorage.setItem(VIEW_MODE_KEY, next); }catch(e){}
   });
+  }
   (function initViewMode(){
     var saved = null;
     try{ saved = localStorage.getItem(VIEW_MODE_KEY); }catch(e){}
     if(saved === "compact"){ applyViewMode("compact"); }
   })();
 
-  // ---------- accent color ----------
+  // ---------- accent color — applied on every page, picker UI lives on settings.html ----------
   var ACCENT_KEY = "watchlog.accentColor";
   function hexToRgba(hex, alpha){
     var h = hex.replace("#", "");
@@ -1782,9 +1790,11 @@
     try{ saved = localStorage.getItem(ACCENT_KEY); }catch(e){}
     if(saved){
       applyAccentColor(saved);
-      document.getElementById("accentPicker").value = saved;
+      var picker = document.getElementById("accentPicker");
+      if(picker){ picker.value = saved; }
     }
   })();
+  if(document.getElementById("accentPicker")){
   var accentRaf = null;
   var pendingAccentVal = null;
   document.getElementById("accentPicker").addEventListener("input", function(ev){
@@ -1798,13 +1808,17 @@
   document.getElementById("accentPicker").addEventListener("change", function(ev){
     try{ localStorage.setItem(ACCENT_KEY, ev.target.value); }catch(e){}
   });
+  }
 
-  // ---------- theme toggle ----------
+  // ---------- theme toggle — picker UI lives on settings.html ----------
   var THEME_KEY = "watchlog.theme";
   function applyThemeButtonLabel(){
+    var btn = document.getElementById("themeToggle");
+    if(!btn) return;
     var isLight = document.documentElement.getAttribute("data-theme") === "light";
-    document.getElementById("themeToggle").textContent = isLight ? "☀️" : "🌙";
+    btn.textContent = isLight ? "☀️" : "🌙";
   }
+  if(document.getElementById("themeToggle")){
   document.getElementById("themeToggle").addEventListener("click", function(){
     var isLight = document.documentElement.getAttribute("data-theme") === "light";
     if(isLight){
@@ -1816,6 +1830,7 @@
     }
     applyThemeButtonLabel();
   });
+  }
   applyThemeButtonLabel();
 
   // ---------- air-date countdown ----------
@@ -1852,8 +1867,9 @@
 
   var WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-  function renderScheduleModalBody(){
-    var body = document.getElementById("scheduleModalBody");
+  function renderSchedulePage(){
+    var body = document.getElementById("schedulePageBody");
+    if(!body) return;
     var watchingEntries = state.entries.filter(function(e){ return e.status === "watching"; });
 
     if(watchingEntries.length === 0){
@@ -1898,18 +1914,10 @@
     body.innerHTML = '<div class="schedule-grid">' + cols + "</div>";
   }
 
-  var scheduleModalBackdrop = document.getElementById("scheduleModalBackdrop");
-  document.getElementById("scheduleBtn").addEventListener("click", function(){
-    scheduleModalBackdrop.classList.add("open");
-    document.getElementById("scheduleModalBody").innerHTML = '<p class="search-status">Loading schedule…</p>';
-    fetchAiringInfo().then(renderScheduleModalBody);
-  });
-  document.getElementById("closeScheduleModalBtn").addEventListener("click", function(){
-    scheduleModalBackdrop.classList.remove("open");
-  });
-  scheduleModalBackdrop.addEventListener("click", function(ev){
-    if(ev.target === scheduleModalBackdrop){ scheduleModalBackdrop.classList.remove("open"); }
-  });
+  if(document.getElementById("schedulePageBody")){
+    document.getElementById("schedulePageBody").innerHTML = '<p class="search-status">Loading schedule…</p>';
+    fetchAiringInfo().then(renderSchedulePage);
+  }
 
   // ---------- ad slots ----------
   function injectAd(slot, key, width, height){

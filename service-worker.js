@@ -1,7 +1,11 @@
-const CACHE_NAME = "watchlog-shell-v1";
+const CACHE_NAME = "watchlog-shell-v2";
 const SHELL_FILES = [
   "./",
   "./index.html",
+  "./stats.html",
+  "./schedule.html",
+  "./discover.html",
+  "./settings.html",
   "./style.css",
   "./script.js",
   "./manifest.json",
