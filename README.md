@@ -12,13 +12,23 @@ A personal anime watch tracker, split into plain HTML/CSS/JS so it's easy to rea
 - `style.css` — all styling
 - `script.js` — all app logic (each page only runs the parts relevant to it)
 - `manifest.json`, `service-worker.js`, `icons/` — PWA support (installable, works offline)
+- `robots.txt`, `sitemap.xml` — basic SEO/crawlability
 
 All pages share the same `localStorage` data, so your list, ratings, etc. show up consistently no matter which page you're on — navigate between them with the nav bar at the top of every page.
+
+## SEO
+
+Each page has a unique `<title>`, meta description, `robots` tag, canonical link, and Open Graph/Twitter Card tags (so links shared on social media or chat apps show a proper title/description/icon preview instead of a blank box). `index.html` also has basic JSON-LD structured data describing the app. `robots.txt` and `sitemap.xml` are included for search engine crawlers.
+
+**One thing to do after you host it:** the canonical/Open Graph URLs and `sitemap.xml` currently use placeholder paths, since the real address depends on your GitHub username and repo name. Once your site is live, find-and-replace `your-username.github.io/your-repo-name` (or update the relative paths in each page's `<head>` plus `sitemap.xml`) with your actual URL — otherwise social previews and search engines may show the wrong link.
+
+Worth knowing: this is a client-side, localStorage-only personal tool — there's no server-rendered content that changes per visitor, so it won't rank for searches the way a content site would. The SEO additions here are mainly about making links to it look right when shared, and giving search engines accurate metadata if someone does search for it directly.
 
 ## Features
 
 - **Search & auto-add seasons** — looks up titles live via the [AniList](https://anilist.co) API and pulls in the poster, banner art, description, genres, and community score automatically. For shows AniList splits into multiple seasonal entries (e.g. *Attack on Titan* Season 1/2/3/4), it walks the prequel/sequel chain and adds every season it finds — each with its own episode count — instead of just the one you searched for. If a title isn't found, there's an "Add manually" fallback.
 - **Per-episode checklist** — every season gets a grid of episode numbers you can tap individually, so you can mark exactly which episodes you've seen (not just a running count) — handy for rewatches, skipped episodes, etc.
+- **Quick-bump from the collapsed card** — every card shows a "Next: Ep N · + Mark watched" row you can tap without expanding anything, for the common case of "I just watched the next episode." Switches to "All caught up ✓" once a season's finished.
 - **Multiple seasons per show** — add more season/arc blocks yourself too via "+ Add season", each with its own checklist and total.
 - **Uniform card sizing** — cards are normalized to the same height regardless of title length, description length, or genre count, so the grid looks tidy instead of jagged.
 - **Per-episode checklist with auto-fill** — tap an episode to mark it watched; everything before it fills in automatically (so tapping episode 6 marks 1–6). Unmarking only removes that one episode, so you can still poke holes for rewatches/skips afterward.
@@ -44,7 +54,7 @@ All pages share the same `localStorage` data, so your list, ratings, etc. show u
 - **Drag to reorder** — grab the ⠿ handle in the top-right of any card's banner and drag it to reorder your list. Only works while sort mode is set to "Manual order."
 - **Ratings** — a quick 1–10 score per title (click a bar to set it, click the same one again to clear it).
 - **Status tracking** — Watching / Completed / Plan to Watch / Dropped, with gentle automatic nudges (e.g. finishing every known episode flips it to Completed) that you can always override.
-- **Export / Import JSON** (on the Settings page) — back up your log or move it to another browser/device.
+- **Export / Import** (on the Settings page) — JSON backup (full data, re-importable) or CSV (a flattened, read-only spreadsheet summary — title, status, rating, episode counts, genres, tags) to back up your log or move it elsewhere.
 
 ## Notes on season auto-discovery
 
@@ -55,7 +65,7 @@ All pages share the same `localStorage` data, so your list, ratings, etc. show u
 ## Host it on GitHub Pages
 
 1. Create a new GitHub repository (public or private).
-2. Add all the files in this folder to the **root** of the repo — `index.html`, `stats.html`, `schedule.html`, `discover.html`, `settings.html`, `style.css`, `script.js`, `README.md`, `manifest.json`, `service-worker.js`, and the `icons/` folder. The relative paths matter (especially for the icons and service worker), so keep the folder structure as-is.
+2. Add all the files in this folder to the **root** of the repo — `index.html`, `stats.html`, `schedule.html`, `discover.html`, `settings.html`, `style.css`, `script.js`, `README.md`, `manifest.json`, `service-worker.js`, `robots.txt`, `sitemap.xml`, and the `icons/` folder. The relative paths matter (especially for the icons and service worker), so keep the folder structure as-is.
 3. Commit and push.
 4. In the repo, go to **Settings → Pages**.
 5. Under "Build and deployment", set **Source** to "Deploy from a branch", choose your default branch (e.g. `main`) and `/ (root)` folder, then **Save**.

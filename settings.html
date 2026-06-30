@@ -4,6 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Settings — Watch Log</title>
+<!-- SEO: once hosted, replace the canonical/og:url paths below with your real GitHub Pages URL for correct social-media link previews -->
+<meta name="description" content="Customize your Watch Log theme and accent color, and back up or restore your anime list as a JSON or CSV file.">
+<link rel="canonical" href="settings.html">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Settings — Watch Log">
+<meta property="og:description" content="Customize your Watch Log theme and accent color, and back up or restore your anime list as a JSON or CSV file.">
+<meta property="og:image" content="icons/icon-512.png">
+<meta property="og:url" content="settings.html">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Settings — Watch Log">
+<meta name="twitter:description" content="Customize your Watch Log theme and accent color, and back up or restore your anime list as a JSON or CSV file.">
+<meta name="twitter:image" content="icons/icon-512.png">
 <script>
   (function(){
     try{
@@ -72,19 +85,27 @@
     <div class="section-label" style="margin-top:28px;">Your data</div>
     <div class="settings-row">
       <div class="settings-row-label">
-        <strong>Export</strong>
-        <span>Download a JSON backup of your whole log.</span>
+        <strong>Export (backup)</strong>
+        <span>Download a JSON backup of your whole log — use this to restore your data later.</span>
       </div>
       <button class="btn btn-ghost btn-small" id="exportBtn">Export JSON</button>
     </div>
     <div class="settings-row">
       <div class="settings-row-label">
+        <strong>Export (spreadsheet)</strong>
+        <span>Download a CSV summary for spreadsheets. One-way only — a CSV can't be re-imported here.</span>
+      </div>
+      <button class="btn btn-ghost btn-small" id="exportCsvBtn">Export CSV</button>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-label">
         <strong>Import</strong>
-        <span>Restore from a backup, or move your log to another browser/device. This replaces your current log.</span>
+        <span>Restore from a JSON backup, or move your log to another browser/device. This replaces your current log.</span>
       </div>
       <button class="btn btn-ghost btn-small" id="importBtn">Import JSON</button>
       <input type="file" id="importFile" accept="application/json" class="visually-hidden">
     </div>
+
   </div>
 </div>
 

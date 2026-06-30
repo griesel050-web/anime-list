@@ -109,6 +109,20 @@
     }
   }
 
+  // Finds the next episode to mark watched: the first season (in order) that still
+  // has room, and the lowest-numbered unwatched episode within it. Returns null if
+  // every season with a known total is fully watched (nothing left to quick-bump).
+  function nextUnwatchedEpisode(entry){
+    for(var i = 0; i < entry.seasons.length; i++){
+      var season = entry.seasons[i];
+      var maxWatched = season.watched.length ? Math.max.apply(null, season.watched) : 0;
+      var nextEp = maxWatched + 1;
+      if(season.total && nextEp > season.total) continue; // this season is finished, try the next one
+      return { seasonId: season.id, ep: nextEp, seasonLabel: season.label };
+    }
+    return null;
+  }
+
   function aggregateProgress(entry){
     var watchedCount = 0, totalKnown = 0, anyUnknown = entry.seasons.length === 0;
     entry.seasons.forEach(function(s){
@@ -451,6 +465,14 @@
 
     var isOpen = !entry.collapsed;
 
+    var nextEp = (entry.status === "dropped") ? null : nextUnwatchedEpisode(entry);
+    var quickBumpHtml = nextEp
+      ? '<div class="quick-bump">' +
+          '<span class="quick-bump-label">Next: Ep ' + nextEp.ep + (entry.seasons.length > 1 ? " · " + escapeHtml(nextEp.seasonLabel) : "") + "</span>" +
+          '<button type="button" class="quick-bump-btn" data-action="quick-bump" data-season-id="' + nextEp.seasonId + '" data-ep="' + nextEp.ep + '">+ Mark watched</button>' +
+        "</div>"
+      : (entry.seasons.length && entry.status !== "dropped" ? '<div class="quick-bump quick-bump-done"><span class="quick-bump-label">All caught up ✓</span></div>' : "");
+
     return (
       '<article class="card' + pulse + enter + '" draggable="true" data-id="' + entry.id + '" data-status="' + entry.status + '">' +
         '<div class="card-banner"' + bannerStyle + '>' +
@@ -470,6 +492,7 @@
           "</div>" +
         "</div>" +
         progressHtml(entry) +
+        quickBumpHtml +
         '<div class="card-body">' +
           descriptionZoneHtml(entry) +
           discoveringHtml +
@@ -802,6 +825,17 @@
 
     if(action === "remove-anime"){
       removeEntry(entry.id);
+
+    } else if(action === "quick-bump" && season){
+      var bumpEp = parseInt(actionEl.getAttribute("data-ep"), 10);
+      if(!season.total && bumpEp > (season.length || 0)){ season.length = bumpEp; } // make room in the grid if needed
+      if(season.watched.indexOf(bumpEp) === -1){ season.watched.push(bumpEp); }
+      season.watched.sort(function(a, b){ return a - b; });
+      autoStatus(entry);
+      entry.updatedAt = Date.now();
+      state.lastTouchedEntryId = entry.id;
+      state.lastToggledEps = { seasonId: season.id, eps: [bumpEp] };
+      saveEntries(); render();
 
     } else if(action === "rating-bar"){
       var val = parseInt(actionEl.getAttribute("data-value"), 10);
@@ -1714,7 +1748,53 @@
     URL.revokeObjectURL(url);
     showToast("Backup downloaded.");
   });
+  }
 
+  // CSV export — a flattened, read-only summary (one row per title) for spreadsheets.
+  // Unlike JSON, this can't be re-imported: CSV has no good way to represent nested
+  // seasons/episode lists, so it's a one-way "view your data elsewhere" export only.
+  function csvEscape(val){
+    var s = String(val == null ? "" : val);
+    if(/[",\n]/.test(s)){ s = '"' + s.replace(/"/g, '""') + '"'; }
+    return s;
+  }
+  if(document.getElementById("exportCsvBtn")){
+  document.getElementById("exportCsvBtn").addEventListener("click", function(){
+    if(state.entries.length === 0){
+      showToast("Your log is empty — nothing to export yet.");
+      return;
+    }
+    var headers = ["Title", "Status", "Rating", "Seasons", "Episodes Watched", "Genres", "Tags", "AniList URL"];
+    var rows = state.entries.map(function(e){
+      var episodesWatched = e.seasons.reduce(function(sum, s){ return sum + s.watched.length; }, 0);
+      var anilistUrl = e.apiId ? ("https://anilist.co/anime/" + e.apiId) : "";
+      return [
+        e.title,
+        statusMeta[e.status] ? statusMeta[e.status].label : e.status,
+        e.rating != null ? e.rating : "",
+        e.seasons.length,
+        episodesWatched,
+        (e.genres || []).join("; "),
+        (e.tags || []).join("; "),
+        anilistUrl
+      ].map(csvEscape).join(",");
+    });
+    var csv = headers.join(",") + "\n" + rows.join("\n");
+    var blob = new Blob([csv], { type: "text/csv" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    var date = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = "watch-log-" + date + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("CSV downloaded.");
+  });
+  }
+
+  if(document.getElementById("importBtn")){
   var importFile = document.getElementById("importFile");
   document.getElementById("importBtn").addEventListener("click", function(){
     importFile.value = "";
@@ -1741,7 +1821,7 @@
     };
     reader.readAsText(file);
   });
-  } // end export/import JSON guard
+  } // end import JSON guard
 
   // ---------- view mode (grid/compact) — index.html only ----------
   var VIEW_MODE_KEY = "watchlog.viewMode";
