@@ -20,7 +20,7 @@ All pages share the same `localStorage` data, so your list, ratings, etc. show u
 
 Each page has a unique `<title>`, meta description, `robots` tag, canonical link, and Open Graph/Twitter Card tags (so links shared on social media or chat apps show a proper title/description/icon preview instead of a blank box). `index.html` also has basic JSON-LD structured data describing the app. `robots.txt` and `sitemap.xml` are included for search engine crawlers.
 
-**One thing to do after you host it:** the canonical/Open Graph URLs and `sitemap.xml` currently use placeholder paths, since the real address depends on your GitHub username and repo name. Once your site is live, find-and-replace `your-username.github.io/your-repo-name` (or update the relative paths in each page's `<head>` plus `sitemap.xml`) with your actual URL — otherwise social previews and search engines may show the wrong link.
+The canonical/Open Graph URLs and `sitemap.xml` point at `https://list.nexosites.xyz/` (matching `CNAME`). If you ever move this to a different domain, update the absolute URLs in each page's `<head>` plus `sitemap.xml` and `robots.txt` to match.
 
 Worth knowing: this is a client-side, localStorage-only personal tool — there's no server-rendered content that changes per visitor, so it won't rank for searches the way a content site would. The SEO additions here are mainly about making links to it look right when shared, and giving search engines accurate metadata if someone does search for it directly.
 

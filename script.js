@@ -2047,5 +2047,8 @@
   state.entries = loadEntries();
   render();
   loadAds();
-  fetchAiringInfo();
+  // schedule.html already fetches airing info itself (see the guard above) — avoid firing it twice
+  if(!document.getElementById("schedulePageBody")){
+    fetchAiringInfo();
+  }
 })();

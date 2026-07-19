@@ -161,6 +161,12 @@ textarea::placeholder, input::placeholder{ color: var(--text-faint); }
   justify-content: center;
 }
 .brand-mark .clapper svg{ width: 14px; height: 14px; fill: var(--accent); }
+.brand-logo{
+  height: 44px;
+  width: auto;
+  flex-shrink: 0;
+  display: block;
+}
 .tagline{
   font-size: 0.9rem;
   color: var(--text-dim);
@@ -1252,6 +1258,7 @@ textarea::placeholder, input::placeholder{ color: var(--text-faint); }
 
 @media (max-width: 480px){
   .brand-mark{ font-size: 2.1rem; }
+  .brand-logo{ height: 36px; }
   .search-mine{ width: 100%; }
   .toolbar{ flex-direction: column; align-items: stretch; }
 }

@@ -10,7 +10,11 @@ const SHELL_FILES = [
   "./script.js",
   "./manifest.json",
   "./icons/icon-192.png",
-  "./icons/icon-512.png"
+  "./icons/icon-512.png",
+  "./icons/apple-touch-icon.png",
+  "./icons/favicon-32.png",
+  "./icons/favicon-48.png",
+  "./icons/watchlog-logo-header.png"
 ];
 
 self.addEventListener("install", function(event){
