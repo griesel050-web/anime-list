@@ -1115,6 +1115,9 @@
     document.getElementById("manualTitle").value = "";
     document.getElementById("manualTotal").value = "";
     document.getElementById("manualImage").value = "";
+    document.getElementById("bulkForm").classList.remove("open");
+    document.getElementById("bulkTitlesInput").value = "";
+    document.getElementById("bulkStatus").textContent = "";
     setTimeout(function(){ searchInput.focus(); }, 30);
   }
   function closeModal(){
@@ -1178,6 +1181,99 @@
     document.getElementById("manualTitle").value = "";
     document.getElementById("manualTotal").value = "";
     document.getElementById("manualImage").value = "";
+  });
+
+  document.getElementById("bulkToggle").addEventListener("click", function(ev){
+    ev.preventDefault();
+    document.getElementById("bulkForm").classList.toggle("open");
+  });
+
+  // Same AniList search as the live box above, but perPage:1 — bulk add takes the single best match
+  // per line rather than making the user pick, since picking 20 times would defeat the point.
+  function searchAniListTopMatch(query){
+    var gql =
+      "query ($s: String) { Page(perPage: 1) { media(search: $s, type: ANIME, sort: SEARCH_MATCH) { " +
+      "id title { romaji english } coverImage { large medium } episodes duration format seasonYear } } }";
+
+    return fetch("https://graphql.anilist.co", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ query: gql, variables: { s: query } })
+    })
+      .then(function(res){
+        if(res.status === 429){ throw new Error("rate-limited"); }
+        if(!res.ok){ throw new Error("bad-response"); }
+        return res.json();
+      })
+      .then(function(json){
+        if(json.errors){ throw new Error("api-error"); }
+        var m = json.data && json.data.Page && json.data.Page.media && json.data.Page.media[0];
+        if(!m) return null;
+        return {
+          apiId: m.id,
+          title: pickTitle(m.title),
+          image: m.coverImage ? (m.coverImage.large || m.coverImage.medium || "") : "",
+          episodes: m.episodes || null,
+          duration: m.duration || null,
+          format: m.format || "",
+          year: m.seasonYear || null
+        };
+      });
+  }
+
+  document.getElementById("bulkAddBtn").addEventListener("click", function(){
+    var bulkBtn = document.getElementById("bulkAddBtn");
+    var statusEl = document.getElementById("bulkStatus");
+    var titles = document.getElementById("bulkTitlesInput").value
+      .split("\n")
+      .map(function(s){ return s.trim(); })
+      .filter(Boolean);
+
+    if(titles.length === 0){
+      statusEl.textContent = "Paste at least one title first, one per line.";
+      return;
+    }
+
+    bulkBtn.disabled = true;
+    var added = [], skipped = [], notFound = [];
+    var i = 0;
+
+    function finish(){
+      bulkBtn.disabled = false;
+      bulkBtn.textContent = "Search & add all";
+      var parts = [];
+      if(added.length) parts.push(added.length + " added");
+      if(skipped.length) parts.push(skipped.length + " already in your log");
+      if(notFound.length) parts.push(notFound.length + " not found (" + notFound.join(", ") + ")");
+      statusEl.textContent = parts.join(" · ");
+      if(added.length) showToast("Bulk-added " + added.length + " title" + (added.length === 1 ? "" : "s") + " — looking up seasons and details…");
+    }
+
+    function next(){
+      if(i >= titles.length){ finish(); return; }
+      var title = titles[i];
+      bulkBtn.textContent = "Adding " + (i + 1) + "/" + titles.length + "…";
+      statusEl.textContent = 'Searching "' + title + '"…';
+      searchAniListTopMatch(title)
+        .then(function(item){
+          if(!item){
+            notFound.push(title);
+          } else if(state.entries.some(function(e){ return e.apiId === item.apiId; })){
+            skipped.push(title);
+          } else {
+            addEntry(item);
+            added.push(item.title);
+          }
+        })
+        .catch(function(){ notFound.push(title); })
+        .then(function(){
+          i++;
+          // AniList's public API rate-limits fairly aggressively — a short gap between
+          // requests keeps a long paste from tripping a 429 partway through.
+          setTimeout(next, 400);
+        });
+    }
+    next();
   });
 
   function resultRowHtml(item, index){
@@ -1999,41 +2095,6 @@
     fetchAiringInfo().then(renderSchedulePage);
   }
 
-  // ---------- ad slots ----------
-  function injectAd(slot, key, width, height){
-    slot.style.width = width + "px";
-    slot.style.height = height + "px";
-
-    var configScript = document.createElement("script");
-    configScript.text = "atOptions = " + JSON.stringify({ key: key, format: "iframe", height: height, width: width, params: {} }) + ";";
-    slot.appendChild(configScript);
-
-    var invokeScript = document.createElement("script");
-    invokeScript.src = "https://www.highperformanceformat.com/" + key + "/invoke.js";
-    slot.appendChild(invokeScript);
-  }
-
-  function loadAds(){
-    // Bottom banner — always shown, responsive between two sizes.
-    var bottomSlot = document.getElementById("adSlot");
-    if(bottomSlot){
-      var wide = window.innerWidth >= 480;
-      if(wide){ injectAd(bottomSlot, "6a7a0c4964d3e8660fc91b19f382dc41", 728, 90); }
-      else{ injectAd(bottomSlot, "34bafde07c6959c9246755341eedb0e5", 320, 50); }
-    }
-
-    // Top banner — desktop/tablet only, so mobile isn't sandwiched between two ads.
-    var topZone = document.getElementById("adZoneTop");
-    var topSlot = document.getElementById("adSlotTop");
-    if(topZone && topSlot){
-      if(window.innerWidth >= 700){
-        injectAd(topSlot, "f11f05d413b772304e0656d5b23010e7", 468, 60);
-      } else {
-        topZone.classList.add("ad-hidden");
-      }
-    }
-  }
-
   // ---------- PWA: service worker registration ----------
   if("serviceWorker" in navigator){
     window.addEventListener("load", function(){
@@ -2046,7 +2107,6 @@
   // ---------- init ----------
   state.entries = loadEntries();
   render();
-  loadAds();
   // schedule.html already fetches airing info itself (see the guard above) — avoid firing it twice
   if(!document.getElementById("schedulePageBody")){
     fetchAiringInfo();

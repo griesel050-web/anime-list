@@ -79,11 +79,6 @@
     <a href="settings.html" class="nav-link">⚙️ Settings</a>
   </nav>
 
-  <div class="ad-zone ad-zone-top" id="adZoneTop">
-    <div class="ad-label">Advertisement</div>
-    <div class="ad-slot" id="adSlotTop"></div>
-  </div>
-
   <div class="toolbar">
     <div class="tabs" id="tabs" role="tablist" aria-label="Filter by status"></div>
     <div class="toolbar-controls">
@@ -106,11 +101,6 @@
   </div>
 
   <div class="grid" id="grid"></div>
-
-  <div class="ad-zone">
-    <div class="ad-label">Advertisement</div>
-    <div class="ad-slot" id="adSlot"></div>
-  </div>
 
   <footer class="footer">
     <span>Stored locally in this browser. Back up your data any time from the <a href="settings.html">Settings</a> page.</span>
@@ -145,6 +135,16 @@
           <input id="manualImage" type="text" placeholder="https://…">
         </div>
         <button class="btn btn-primary btn-small" id="manualAddBtn" style="align-self:flex-start;">Add to log</button>
+      </div>
+
+      <a href="#" class="mini-toggle" id="bulkToggle">Adding a bunch at once? →</a>
+      <div class="mini-form" id="bulkForm">
+        <div>
+          <label for="bulkTitlesInput">Titles (one per line)</label>
+          <textarea id="bulkTitlesInput" rows="6" placeholder="Frieren&#10;Dandadan&#10;Solo Leveling"></textarea>
+        </div>
+        <button class="btn btn-primary btn-small" id="bulkAddBtn" style="align-self:flex-start;">Search &amp; add all</button>
+        <p class="search-hint" id="bulkStatus"></p>
       </div>
     </div>
   </div>
